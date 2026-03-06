@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-[#0f0f14] text-gray-100 font-sans;
+    overflow-x: hidden;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-2xl;
+  }
+
+  .btn-primary {
+    @apply bg-brand-600 hover:bg-brand-500 active:bg-brand-700 text-white font-medium
+           px-6 py-3 rounded-xl transition-all duration-200 ease-out
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.04] text-gray-200
+           font-medium px-6 py-3 rounded-xl border border-white/[0.08]
+           transition-all duration-200 ease-out;
+  }
+
+  .input-field {
+    @apply w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3
+           text-gray-100 placeholder-gray-500 outline-none
+           focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30
+           transition-all duration-200;
+  }
+
+  .skeleton {
+    @apply bg-white/[0.06] rounded-xl animate-pulse;
+  }
+}
+
+/* Circular progress */
+.circle-progress {
+  transform: rotate(-90deg);
+}
