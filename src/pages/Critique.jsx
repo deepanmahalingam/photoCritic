@@ -50,6 +50,7 @@ export default function Critique() {
         { label: 'Lighting', value: result.lighting },
         { label: 'Color', value: result.color_balance },
         { label: 'Technical', value: result.technical_quality },
+        { label: 'Artistic', value: result.artistic_quality },
       ]
     : []
 
@@ -89,7 +90,7 @@ export default function Critique() {
             <p className="text-sm text-gray-300 mt-4 text-center max-w-sm">{result.summary}</p>
           </div>
 
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-5 gap-2 sm:gap-3">
             {categories.map((cat) => (
               <div key={cat.label} className="glass-card p-3 flex flex-col items-center">
                 <CircularRating rating={cat.value} size={56} strokeWidth={4} />

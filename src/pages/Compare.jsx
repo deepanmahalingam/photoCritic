@@ -77,6 +77,7 @@ export default function Compare() {
           { l: 'Lighting', v: data.lighting },
           { l: 'Color', v: data.color_balance },
           { l: 'Technical', v: data.technical_quality },
+          { l: 'Artistic', v: data.artistic_quality },
         ].map((c) => (
           <div key={c.l} className="bg-white/[0.04] rounded-lg p-2 flex justify-between">
             <span className="text-gray-500">{c.l}</span>

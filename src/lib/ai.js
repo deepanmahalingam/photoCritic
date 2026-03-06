@@ -152,10 +152,129 @@ function analyzeImage(pixels) {
   }
   const symmetry = 1 - symDiff / (totalPixels * 128)
 
+  // === ARTISTIC QUALITY METRICS ===
+
+  // --- Negative Space: ratio of "quiet" (low-edge) pixels ---
+  const edgeMap = new Float32Array(totalPixels)
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const i = y * width + x
+      edgeMap[i] = Math.abs(brightnessArr[i] - brightnessArr[i - 1]) +
+                   Math.abs(brightnessArr[i] - brightnessArr[i + 1]) +
+                   Math.abs(brightnessArr[i] - brightnessArr[i - width]) +
+                   Math.abs(brightnessArr[i] - brightnessArr[i + width])
+    }
+  }
+  let edgeMax = 0
+  for (let i = 0; i < totalPixels; i++) if (edgeMap[i] > edgeMax) edgeMax = edgeMap[i]
+  const edgeThreshold = edgeMax * 0.1
+  let quietPixels = 0
+  for (let i = 0; i < totalPixels; i++) if (edgeMap[i] < edgeThreshold) quietPixels++
+  const negativeSpace = quietPixels / totalPixels // 0-1, higher = more blank space
+
+  // --- Focal Point Strength: how concentrated the visual interest is ---
+  // Find the peak interest region (16x16 block with highest edge sum)
+  const blockSize = Math.max(8, Math.round(Math.min(width, height) * 0.06))
+  let maxBlockEdge = 0
+  let totalEdge = 0
+  for (let by = 0; by < height - blockSize; by += Math.ceil(blockSize / 2)) {
+    for (let bx = 0; bx < width - blockSize; bx += Math.ceil(blockSize / 2)) {
+      let blockSum = 0
+      for (let dy = 0; dy < blockSize; dy++) {
+        for (let dx = 0; dx < blockSize; dx++) {
+          blockSum += edgeMap[(by + dy) * width + (bx + dx)]
+        }
+      }
+      if (blockSum > maxBlockEdge) maxBlockEdge = blockSum
+      totalEdge += blockSum
+    }
+  }
+  const focalStrength = totalEdge > 0 ? maxBlockEdge / (totalEdge * 0.15) : 0 // higher = stronger focal point
+
+  // --- Tonal Range: how much of the histogram is actually used ---
+  let firstBin = 255, lastBin = 0
+  for (let i = 0; i < 256; i++) {
+    if (histogram[i] > totalPixels * 0.001) {
+      if (i < firstBin) firstBin = i
+      if (i > lastBin) lastBin = i
+    }
+  }
+  const tonalRange = (lastBin - firstBin) / 255 // 0-1, how much of the brightness range is used
+
+  // --- Color Harmony: check for complementary / analogous relationships ---
+  const hueHistogram = new Array(12).fill(0)
+  for (let i = 0; i < totalPixels; i += 2) {
+    const idx = i * 4
+    const r = d[idx], g = d[idx + 1], b = d[idx + 2]
+    const max = Math.max(r, g, b), min = Math.min(r, g, b)
+    if (max - min < 25) continue
+    let h = 0
+    if (max === r) h = ((g - b) / (max - min)) * 60
+    else if (max === g) h = (2 + (b - r) / (max - min)) * 60
+    else h = (4 + (r - g) / (max - min)) * 60
+    if (h < 0) h += 360
+    hueHistogram[Math.floor(h / 30)]++
+  }
+  const hueTotal = hueHistogram.reduce((a, b) => a + b, 0)
+  const hueFractions = hueHistogram.map((v) => (hueTotal > 0 ? v / hueTotal : 0))
+  // Find dominant hue bins (>10% of colored pixels)
+  const dominantHues = hueFractions.map((f, i) => ({ idx: i, frac: f })).filter((h) => h.frac > 0.1)
+  let harmonyScore = 0
+  if (dominantHues.length === 1) {
+    harmonyScore = 0.7 // monochromatic = decent harmony
+  } else if (dominantHues.length >= 2) {
+    for (let i = 0; i < dominantHues.length; i++) {
+      for (let j = i + 1; j < dominantHues.length; j++) {
+        const gap = Math.abs(dominantHues[i].idx - dominantHues[j].idx)
+        const circleGap = Math.min(gap, 12 - gap)
+        if (circleGap <= 2) harmonyScore += 0.4        // analogous
+        else if (circleGap >= 5 && circleGap <= 7) harmonyScore += 0.5 // complementary
+        else if (circleGap === 4 || circleGap === 8) harmonyScore += 0.35 // triadic-ish
+        else harmonyScore += 0.15 // discordant
+      }
+    }
+    harmonyScore = Math.min(1, harmonyScore)
+  }
+
+  // --- Depth Perception: brightness gradient from edges to center ---
+  const centerX = width / 2, centerY = height / 2
+  const maxDist = Math.sqrt(centerX * centerX + centerY * centerY)
+  let innerBrightness = 0, outerBrightness = 0, innerCount = 0, outerCount = 0
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2) / maxDist
+      const lum = brightnessArr[y * width + x]
+      if (dist < 0.35) { innerBrightness += lum; innerCount++ }
+      else if (dist > 0.65) { outerBrightness += lum; outerCount++ }
+    }
+  }
+  const avgInner = innerCount > 0 ? innerBrightness / innerCount : 128
+  const avgOuter = outerCount > 0 ? outerBrightness / outerCount : 128
+  const depthGradient = Math.abs(avgInner - avgOuter) / 128 // natural vignette / depth effect
+
+  // --- Visual Texture Complexity: variance of edge intensities ---
+  let edgeMean = 0
+  let edgeCount = 0
+  for (let i = 0; i < totalPixels; i++) {
+    if (edgeMap[i] > 0) { edgeMean += edgeMap[i]; edgeCount++ }
+  }
+  edgeMean = edgeCount > 0 ? edgeMean / edgeCount : 0
+  let edgeVariance = 0
+  for (let i = 0; i < totalPixels; i++) {
+    if (edgeMap[i] > 0) {
+      const diff = edgeMap[i] - edgeMean
+      edgeVariance += diff * diff
+    }
+  }
+  const textureComplexity = edgeCount > 0 ? Math.sqrt(edgeVariance / edgeCount) : 0
+
   return {
     avgBrightness, contrast, avgSaturation, shadowClip, highlightClip,
     warmth, sharpness, thirdsScore, colorVariety, symmetry,
     aspectRatio: width / height,
+    // Artistic metrics
+    negativeSpace, focalStrength, tonalRange,
+    harmonyScore, depthGradient, textureComplexity,
   }
 }
 
@@ -192,9 +311,39 @@ function scoreFromAnalysis(a) {
   technical -= (a.shadowClip + a.highlightClip) * 4
   technical = Math.max(1, Math.min(10, Math.round(technical)))
 
-  const overall = Math.round((composition + lighting + colorBalance + technical) / 4)
+  // --- ARTISTIC QUALITY ---
+  let artistic = 4
 
-  return { overall_rating: overall, composition, lighting, color_balance: colorBalance, technical_quality: technical }
+  // Negative space: ~30-60% quiet area is ideal (breathing room without emptiness)
+  const nsIdeal = 1 - Math.abs(a.negativeSpace - 0.45) / 0.45
+  artistic += nsIdeal * 1.5
+
+  // Focal point: strong focal point = more artistic intent
+  artistic += Math.min(2, a.focalStrength * 1.2)
+
+  // Tonal range: rich tones = better artistry
+  artistic += a.tonalRange * 1.5
+
+  // Color harmony: complementary / analogous palettes
+  artistic += a.harmonyScore * 1.5
+
+  // Depth perception: vignette / foreground-background separation
+  artistic += Math.min(1, a.depthGradient * 4)
+
+  // Texture complexity: moderate complexity is more artistic than flat or chaotic
+  const texNorm = Math.min(1, a.textureComplexity / 30)
+  const texIdeal = 1 - Math.abs(texNorm - 0.5) * 2 // peak at 0.5
+  artistic += texIdeal * 1
+
+  artistic = Math.max(1, Math.min(10, Math.round(artistic)))
+
+  const overall = Math.round((composition + lighting + colorBalance + technical + artistic) / 5)
+
+  return {
+    overall_rating: overall, composition, lighting,
+    color_balance: colorBalance, technical_quality: technical,
+    artistic_quality: artistic,
+  }
 }
 
 function generateFeedback(scores, analysis) {
@@ -240,15 +389,32 @@ function generateFeedback(scores, analysis) {
     feedback.push('Watch for camera shake or motion blur. Consider using a tripod or increasing your shutter speed.')
   }
 
+  // Artistic feedback
+  if (scores.artistic_quality >= 8) {
+    feedback.push('Strong artistic vision — the image has a clear focal point, good use of space, and harmonious tonal depth.')
+  } else if (analysis.negativeSpace < 0.15) {
+    feedback.push('The frame feels very crowded. Leaving more negative space would let your subject breathe and create visual elegance.')
+  } else if (analysis.negativeSpace > 0.75) {
+    feedback.push('There is a lot of empty space — ensure it serves a purpose. Intentional negative space adds drama, but too much feels unfinished.')
+  } else if (analysis.focalStrength < 0.3) {
+    feedback.push('The image lacks a strong focal point. Guide the viewer\'s eye by creating contrast or isolation around your main subject.')
+  } else if (analysis.harmonyScore < 0.3) {
+    feedback.push('The color palette feels somewhat discordant. Try working with complementary or analogous color schemes for more visual unity.')
+  } else if (analysis.tonalRange < 0.4) {
+    feedback.push('The tonal range is narrow — using a wider range from deep shadows to bright highlights would add dimensionality.')
+  } else if (analysis.depthGradient > 0.15) {
+    feedback.push('Nice sense of depth — the tonal separation between foreground and background adds a three-dimensional feel.')
+  } else {
+    feedback.push('Consider creating more visual depth through layering, leading lines, or tonal contrast between near and far elements.')
+  }
+
   if (analysis.shadowClip > 0.05 && analysis.highlightClip > 0.05) {
     feedback.push('Both shadows and highlights are clipping. Shooting in RAW would preserve more dynamic range for recovery.')
-  } else if (analysis.colorVariety < 0.15) {
-    feedback.push('The color palette is very limited. While minimalism can be powerful, consider if more color contrast would strengthen the image.')
   } else if (analysis.symmetry > 0.85) {
     feedback.push('Great use of symmetry — this creates a strong, satisfying visual pattern.')
   }
 
-  return feedback.slice(0, 5)
+  return feedback.slice(0, 6)
 }
 
 function generateSummary(scores) {
@@ -300,6 +466,7 @@ export async function comparePhotos(fileA, fileB) {
   if (winning.lighting > losing.lighting) reasons.push('superior lighting')
   if (winning.color_balance > losing.color_balance) reasons.push('more balanced colors')
   if (winning.technical_quality > losing.technical_quality) reasons.push('higher technical quality')
+  if (winning.artistic_quality > losing.artistic_quality) reasons.push('stronger artistic vision')
   if (reasons.length === 0) reasons.push('overall stronger execution')
 
   const reason = `Image ${winner} wins with ${reasons.join(' and ')}, scoring ${winning.overall_rating}/10 vs ${losing.overall_rating}/10.`
