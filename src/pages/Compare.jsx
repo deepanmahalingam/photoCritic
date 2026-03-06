@@ -2,8 +2,7 @@ import { useState } from 'react'
 import ImageUpload from '../components/ImageUpload'
 import CircularRating from '../components/CircularRating'
 import SkeletonLoader from '../components/SkeletonLoader'
-import ApiKeySetup from '../components/ApiKeySetup'
-import { comparePhotos, getApiKey } from '../lib/ai'
+import { comparePhotos } from '../lib/ai'
 import { addToHistory } from '../lib/storage'
 import { useAuth } from '../context/AuthContext'
 
@@ -16,7 +15,6 @@ export default function Compare() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [needsKey, setNeedsKey] = useState(false)
 
   const handleSelectA = (f) => {
     setFileA(f); setPreviewA(URL.createObjectURL(f)); setResult(null); setError('')
@@ -26,8 +24,7 @@ export default function Compare() {
   }
 
   const handleCompare = async () => {
-    if (!getApiKey()) { setNeedsKey(true); return }
-    setLoading(true); setError(''); setNeedsKey(false)
+    setLoading(true); setError('')
 
     try {
       const comparison = await comparePhotos(fileA, fileB)
@@ -44,8 +41,7 @@ export default function Compare() {
         })
       }
     } catch (err) {
-      if (err.message === 'API_KEY_MISSING') setNeedsKey(true)
-      else setError(err.message)
+      setError(err.message)
     } finally {
       setLoading(false)
     }
@@ -99,8 +95,6 @@ export default function Compare() {
         <p className="text-sm text-gray-400 mt-1">Upload two photos to find out which one is better.</p>
       </div>
 
-      <ApiKeySetup onReady={() => setNeedsKey(false)} />
-
       <div className="grid grid-cols-2 gap-3">
         <ImageUpload onSelect={handleSelectA} preview={previewA} label="Image A" />
         <ImageUpload onSelect={handleSelectB} preview={previewB} label="Image B" />
@@ -115,16 +109,19 @@ export default function Compare() {
         </button>
       )}
 
-      {needsKey && !getApiKey() && (
-        <div className="glass-card p-4 border-amber-500/20 bg-amber-500/5">
-          <p className="text-sm text-amber-400">Please add your Gemini API key above to compare photos.</p>
-        </div>
-      )}
-
       {loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <SkeletonLoader type="critique" />
-          <SkeletonLoader type="critique" />
+        <div className="space-y-4">
+          <div className="glass-card p-4 flex items-center gap-3">
+            <svg className="animate-spin h-5 w-5 text-brand-400" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="text-sm text-gray-400">Comparing photos with on-device AI...</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <SkeletonLoader type="critique" />
+            <SkeletonLoader type="critique" />
+          </div>
         </div>
       )}
 

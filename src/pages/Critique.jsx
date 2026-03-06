@@ -2,8 +2,7 @@ import { useState } from 'react'
 import ImageUpload from '../components/ImageUpload'
 import CircularRating from '../components/CircularRating'
 import SkeletonLoader from '../components/SkeletonLoader'
-import ApiKeySetup from '../components/ApiKeySetup'
-import { critiquePhoto, getApiKey } from '../lib/ai'
+import { critiquePhoto } from '../lib/ai'
 import { addToHistory } from '../lib/storage'
 import { useAuth } from '../context/AuthContext'
 
@@ -14,7 +13,6 @@ export default function Critique() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [needsKey, setNeedsKey] = useState(false)
 
   const handleSelect = (f) => {
     setFile(f)
@@ -24,14 +22,8 @@ export default function Critique() {
   }
 
   const handleAnalyze = async () => {
-    if (!getApiKey()) {
-      setNeedsKey(true)
-      return
-    }
-
     setLoading(true)
     setError('')
-    setNeedsKey(false)
 
     try {
       const critique = await critiquePhoto(file)
@@ -46,11 +38,7 @@ export default function Critique() {
         })
       }
     } catch (err) {
-      if (err.message === 'API_KEY_MISSING') {
-        setNeedsKey(true)
-      } else {
-        setError(err.message)
-      }
+      setError(err.message)
     } finally {
       setLoading(false)
     }
@@ -73,8 +61,6 @@ export default function Critique() {
         <p className="text-sm text-gray-400 mt-1">Upload a photo to receive AI-powered feedback describing your shot.</p>
       </div>
 
-      <ApiKeySetup onReady={() => setNeedsKey(false)} />
-
       <ImageUpload onSelect={handleSelect} preview={preview} label="Upload your photo" />
 
       {file && !loading && !result && (
@@ -86,13 +72,18 @@ export default function Critique() {
         </button>
       )}
 
-      {needsKey && !getApiKey() && (
-        <div className="glass-card p-4 border-amber-500/20 bg-amber-500/5">
-          <p className="text-sm text-amber-400">Please add your Gemini API key above to analyze photos.</p>
+      {loading && (
+        <div className="space-y-4">
+          <div className="glass-card p-4 flex items-center gap-3">
+            <svg className="animate-spin h-5 w-5 text-brand-400" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="text-sm text-gray-400">Analyzing your photo with on-device AI...</span>
+          </div>
+          <SkeletonLoader type="critique" />
         </div>
       )}
-
-      {loading && <SkeletonLoader type="critique" />}
 
       {error && (
         <div className="glass-card p-4 border-red-500/20">
@@ -105,13 +96,11 @@ export default function Critique() {
 
       {result && (
         <div className="space-y-6 animate-in fade-in">
-          {/* Overall rating + AI summary */}
           <div className="glass-card p-6 flex flex-col items-center">
             <CircularRating rating={result.overall_rating} size={140} label="Overall Score" />
             <p className="text-sm text-gray-300 mt-4 text-center max-w-md leading-relaxed">{result.summary}</p>
           </div>
 
-          {/* Category scores */}
           <div className="grid grid-cols-5 gap-2 sm:gap-3">
             {categories.map((cat) => (
               <div key={cat.label} className="glass-card p-3 flex flex-col items-center">
@@ -121,7 +110,6 @@ export default function Critique() {
             ))}
           </div>
 
-          {/* Content-aware feedback */}
           <div className="glass-card p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <svg className="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -139,11 +127,7 @@ export default function Critique() {
           </div>
 
           <button
-            onClick={() => {
-              setFile(null)
-              setPreview(null)
-              setResult(null)
-            }}
+            onClick={() => { setFile(null); setPreview(null); setResult(null) }}
             className="btn-secondary w-full"
           >
             Analyze Another Photo
