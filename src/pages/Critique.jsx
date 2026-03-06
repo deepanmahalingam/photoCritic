@@ -2,7 +2,8 @@ import { useState } from 'react'
 import ImageUpload from '../components/ImageUpload'
 import CircularRating from '../components/CircularRating'
 import SkeletonLoader from '../components/SkeletonLoader'
-import { critiquePhoto } from '../lib/ai'
+import ApiKeySetup from '../components/ApiKeySetup'
+import { critiquePhoto, getApiKey } from '../lib/ai'
 import { addToHistory } from '../lib/storage'
 import { useAuth } from '../context/AuthContext'
 
@@ -13,6 +14,7 @@ export default function Critique() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [needsKey, setNeedsKey] = useState(false)
 
   const handleSelect = (f) => {
     setFile(f)
@@ -22,8 +24,14 @@ export default function Critique() {
   }
 
   const handleAnalyze = async () => {
+    if (!getApiKey()) {
+      setNeedsKey(true)
+      return
+    }
+
     setLoading(true)
     setError('')
+    setNeedsKey(false)
 
     try {
       const critique = await critiquePhoto(file)
@@ -38,7 +46,11 @@ export default function Critique() {
         })
       }
     } catch (err) {
-      setError(err.message)
+      if (err.message === 'API_KEY_MISSING') {
+        setNeedsKey(true)
+      } else {
+        setError(err.message)
+      }
     } finally {
       setLoading(false)
     }
@@ -58,8 +70,10 @@ export default function Critique() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Photo Critique</h1>
-        <p className="text-sm text-gray-400 mt-1">Upload a photo to receive instant feedback on your shot.</p>
+        <p className="text-sm text-gray-400 mt-1">Upload a photo to receive AI-powered feedback describing your shot.</p>
       </div>
+
+      <ApiKeySetup onReady={() => setNeedsKey(false)} />
 
       <ImageUpload onSelect={handleSelect} preview={preview} label="Upload your photo" />
 
@@ -70,6 +84,12 @@ export default function Critique() {
           </svg>
           Analyze Photo
         </button>
+      )}
+
+      {needsKey && !getApiKey() && (
+        <div className="glass-card p-4 border-amber-500/20 bg-amber-500/5">
+          <p className="text-sm text-amber-400">Please add your Gemini API key above to analyze photos.</p>
+        </div>
       )}
 
       {loading && <SkeletonLoader type="critique" />}
@@ -85,11 +105,13 @@ export default function Critique() {
 
       {result && (
         <div className="space-y-6 animate-in fade-in">
+          {/* Overall rating + AI summary */}
           <div className="glass-card p-6 flex flex-col items-center">
             <CircularRating rating={result.overall_rating} size={140} label="Overall Score" />
-            <p className="text-sm text-gray-300 mt-4 text-center max-w-sm">{result.summary}</p>
+            <p className="text-sm text-gray-300 mt-4 text-center max-w-md leading-relaxed">{result.summary}</p>
           </div>
 
+          {/* Category scores */}
           <div className="grid grid-cols-5 gap-2 sm:gap-3">
             {categories.map((cat) => (
               <div key={cat.label} className="glass-card p-3 flex flex-col items-center">
@@ -99,23 +121,21 @@ export default function Critique() {
             ))}
           </div>
 
+          {/* Content-aware feedback */}
           <div className="glass-card p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <svg className="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.282 48.282 0 0 0 5.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
               </svg>
-              Feedback
+              Detailed Feedback
             </h3>
-            <ul className="space-y-3">
+            <div className="space-y-4">
               {result.feedback.map((point, i) => (
-                <li key={i} className="flex gap-3 text-sm text-gray-300">
-                  <span className="w-5 h-5 rounded-full bg-brand-600/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-[10px] font-bold text-brand-400">{i + 1}</span>
-                  </span>
+                <p key={i} className="text-sm text-gray-300 leading-relaxed pl-4 border-l-2 border-brand-600/30">
                   {point}
-                </li>
+                </p>
               ))}
-            </ul>
+            </div>
           </div>
 
           <button

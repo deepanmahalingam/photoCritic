@@ -2,7 +2,8 @@ import { useState } from 'react'
 import ImageUpload from '../components/ImageUpload'
 import CircularRating from '../components/CircularRating'
 import SkeletonLoader from '../components/SkeletonLoader'
-import { comparePhotos } from '../lib/ai'
+import ApiKeySetup from '../components/ApiKeySetup'
+import { comparePhotos, getApiKey } from '../lib/ai'
 import { addToHistory } from '../lib/storage'
 import { useAuth } from '../context/AuthContext'
 
@@ -15,29 +16,22 @@ export default function Compare() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [needsKey, setNeedsKey] = useState(false)
 
   const handleSelectA = (f) => {
-    setFileA(f)
-    setPreviewA(URL.createObjectURL(f))
-    setResult(null)
-    setError('')
+    setFileA(f); setPreviewA(URL.createObjectURL(f)); setResult(null); setError('')
   }
-
   const handleSelectB = (f) => {
-    setFileB(f)
-    setPreviewB(URL.createObjectURL(f))
-    setResult(null)
-    setError('')
+    setFileB(f); setPreviewB(URL.createObjectURL(f)); setResult(null); setError('')
   }
 
   const handleCompare = async () => {
-    setLoading(true)
-    setError('')
+    if (!getApiKey()) { setNeedsKey(true); return }
+    setLoading(true); setError(''); setNeedsKey(false)
 
     try {
       const comparison = await comparePhotos(fileA, fileB)
       setResult(comparison)
-
       if (user) {
         addToHistory({
           type: 'compare',
@@ -50,7 +44,8 @@ export default function Compare() {
         })
       }
     } catch (err) {
-      setError(err.message)
+      if (err.message === 'API_KEY_MISSING') setNeedsKey(true)
+      else setError(err.message)
     } finally {
       setLoading(false)
     }
@@ -70,8 +65,8 @@ export default function Compare() {
       <div className="flex justify-center mb-3">
         <CircularRating rating={data.overall_rating} size={80} strokeWidth={5} />
       </div>
-      <p className="text-xs text-gray-400 text-center mb-3">{data.summary}</p>
-      <div className="grid grid-cols-2 gap-2 text-xs">
+      <p className="text-xs text-gray-400 text-center mb-3 leading-relaxed">{data.summary}</p>
+      <div className="grid grid-cols-2 gap-2 text-xs mb-3">
         {[
           { l: 'Composition', v: data.composition },
           { l: 'Lighting', v: data.lighting },
@@ -85,6 +80,15 @@ export default function Compare() {
           </div>
         ))}
       </div>
+      {data.feedback && data.feedback.length > 0 && (
+        <div className="space-y-2 pt-3 border-t border-white/[0.06]">
+          {data.feedback.map((point, i) => (
+            <p key={i} className="text-xs text-gray-400 leading-relaxed pl-3 border-l-2 border-brand-600/20">
+              {point}
+            </p>
+          ))}
+        </div>
+      )}
     </div>
   )
 
@@ -94,6 +98,8 @@ export default function Compare() {
         <h1 className="text-2xl font-bold">Compare & Contrast</h1>
         <p className="text-sm text-gray-400 mt-1">Upload two photos to find out which one is better.</p>
       </div>
+
+      <ApiKeySetup onReady={() => setNeedsKey(false)} />
 
       <div className="grid grid-cols-2 gap-3">
         <ImageUpload onSelect={handleSelectA} preview={previewA} label="Image A" />
@@ -107,6 +113,12 @@ export default function Compare() {
           </svg>
           Compare Photos
         </button>
+      )}
+
+      {needsKey && !getApiKey() && (
+        <div className="glass-card p-4 border-amber-500/20 bg-amber-500/5">
+          <p className="text-sm text-amber-400">Please add your Gemini API key above to compare photos.</p>
+        </div>
       )}
 
       {loading && (
@@ -133,7 +145,7 @@ export default function Compare() {
           </div>
 
           <div className="glass-card p-4">
-            <p className="text-sm text-gray-300">
+            <p className="text-sm text-gray-300 leading-relaxed">
               <span className="font-semibold text-brand-400">Verdict: </span>
               {result.reason}
             </p>
@@ -141,11 +153,7 @@ export default function Compare() {
 
           <button
             onClick={() => {
-              setFileA(null)
-              setFileB(null)
-              setPreviewA(null)
-              setPreviewB(null)
-              setResult(null)
+              setFileA(null); setFileB(null); setPreviewA(null); setPreviewB(null); setResult(null)
             }}
             className="btn-secondary w-full"
           >
