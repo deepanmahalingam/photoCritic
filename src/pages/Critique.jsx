@@ -58,7 +58,7 @@ export default function Critique() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Photo Critique</h1>
-        <p className="text-sm text-gray-400 mt-1">Upload a photo to receive AI-powered feedback describing your shot.</p>
+        <p className="text-sm text-gray-400 mt-1">Upload a photo to receive intelligent feedback describing your shot.</p>
       </div>
 
       <ImageUpload onSelect={handleSelect} preview={preview} label="Upload your photo" />
@@ -79,7 +79,7 @@ export default function Critique() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            <span className="text-sm text-gray-400">Analyzing your photo with on-device AI...</span>
+            <span className="text-sm text-gray-400">Analyzing your photo using smart vision engine...</span>
           </div>
           <SkeletonLoader type="critique" />
         </div>

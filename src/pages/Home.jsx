@@ -18,7 +18,7 @@ export default function Home() {
         Photo<span className="text-brand-400">Critic</span>
       </h1>
       <p className="mt-4 text-gray-400 max-w-md text-lg leading-relaxed">
-        Get professional AI-powered feedback on your photography. Improve your skills, one shot at a time.
+        Get professional, in-depth feedback on your photography. Improve your skills, one shot at a time.
       </p>
 
       {/* Action Cards */}
@@ -30,7 +30,7 @@ export default function Home() {
             </svg>
           </div>
           <h3 className="font-semibold text-white">Single Critique</h3>
-          <p className="text-sm text-gray-400 mt-1">Upload a photo and get detailed AI feedback with a 1-10 rating.</p>
+          <p className="text-sm text-gray-400 mt-1">Upload a photo and get detailed feedback with a 1-10 rating.</p>
         </NavLink>
 
         <NavLink to="/compare" className="glass-card p-6 text-left hover:bg-white/[0.06] transition-all group">
@@ -50,7 +50,7 @@ export default function Home() {
         <div className="space-y-4">
           {[
             { step: '1', title: 'Upload', desc: 'Choose a photo from your camera roll or drag-and-drop.' },
-            { step: '2', title: 'Analyze', desc: 'AI evaluates composition, lighting, color, and technical quality.' },
+            { step: '2', title: 'Analyze', desc: 'Smart analysis evaluates composition, lighting, color, and technical quality.' },
             { step: '3', title: 'Improve', desc: 'Get actionable feedback and a score to track your progress.' },
           ].map((item) => (
             <div key={item.step} className="flex items-start gap-4 text-left">
