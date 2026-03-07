@@ -2,7 +2,7 @@ import { useState } from 'react'
 import ImageUpload from '../components/ImageUpload'
 import CircularRating from '../components/CircularRating'
 import SkeletonLoader from '../components/SkeletonLoader'
-import { comparePhotos } from '../lib/ai'
+import { comparePhotos, generateSmartCaptions, getGeminiKey, saveGeminiKey } from '../lib/ai'
 import { addToHistory } from '../lib/storage'
 import { useAuth } from '../context/AuthContext'
 
@@ -16,19 +16,33 @@ export default function Compare() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Caption state
+  const [captionsA, setCaptionsA] = useState([])
+  const [captionsB, setCaptionsB] = useState([])
+  const [isSmartCaptions, setIsSmartCaptions] = useState(false)
+  const [captionsLoading, setCaptionsLoading] = useState(false)
+  const [showKeyInput, setShowKeyInput] = useState(false)
+  const [keyInput, setKeyInput] = useState('')
+
   const handleSelectA = (f) => {
     setFileA(f); setPreviewA(URL.createObjectURL(f)); setResult(null); setError('')
+    setCaptionsA([]); setIsSmartCaptions(false)
   }
   const handleSelectB = (f) => {
     setFileB(f); setPreviewB(URL.createObjectURL(f)); setResult(null); setError('')
+    setCaptionsB([]); setIsSmartCaptions(false)
   }
 
   const handleCompare = async () => {
     setLoading(true); setError('')
+    setCaptionsA([]); setCaptionsB([]); setIsSmartCaptions(false)
 
     try {
       const comparison = await comparePhotos(fileA, fileB)
       setResult(comparison)
+      setCaptionsA(comparison.image_a.captions || [])
+      setCaptionsB(comparison.image_b.captions || [])
+
       if (user) {
         addToHistory({
           type: 'compare',
@@ -40,6 +54,12 @@ export default function Compare() {
           thumbnailB: previewB,
         })
       }
+
+      // If Gemini key exists, silently upgrade captions
+      const key = getGeminiKey()
+      if (key) {
+        upgradeToSmart(key)
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -47,7 +67,34 @@ export default function Compare() {
     }
   }
 
-  const renderImageResult = (data, label, isWinner) => (
+  const upgradeToSmart = async (key) => {
+    setCaptionsLoading(true)
+    try {
+      const [smartA, smartB] = await Promise.all([
+        generateSmartCaptions(fileA, key),
+        generateSmartCaptions(fileB, key),
+      ])
+      if (smartA.length > 0) setCaptionsA(smartA)
+      if (smartB.length > 0) setCaptionsB(smartB)
+      if (smartA.length > 0 || smartB.length > 0) setIsSmartCaptions(true)
+    } catch {
+      // Silently fail — offline captions remain
+    } finally {
+      setCaptionsLoading(false)
+    }
+  }
+
+  const handleSaveKey = () => {
+    if (!keyInput.trim()) return
+    saveGeminiKey(keyInput)
+    setKeyInput('')
+    setShowKeyInput(false)
+    if (result && fileA && fileB) {
+      upgradeToSmart(keyInput.trim())
+    }
+  }
+
+  const renderImageResult = (data, label, isWinner, captions) => (
     <div className={`glass-card p-4 relative ${isWinner ? 'ring-2 ring-green-500/40' : ''}`}>
       {isWinner && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500 text-black text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
@@ -85,10 +132,21 @@ export default function Compare() {
           ))}
         </div>
       )}
-      {data.captions && data.captions.length > 0 && (
+      {captions && captions.length > 0 && (
         <div className="space-y-2 pt-3 border-t border-white/[0.06]">
-          <p className="text-xs font-semibold text-gray-400 mb-1">Caption Ideas</p>
-          {data.captions.slice(0, 3).map((caption, i) => (
+          <p className="text-xs font-semibold text-gray-400 mb-1 flex items-center gap-1">
+            Caption Ideas
+            {captionsLoading && (
+              <svg className="animate-spin h-3 w-3 text-brand-400" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            )}
+            {isSmartCaptions && !captionsLoading && (
+              <span className="text-[9px] text-brand-400/70 font-normal">&#x2728;</span>
+            )}
+          </p>
+          {captions.slice(0, 3).map((caption, i) => (
             <p
               key={i}
               className="text-xs text-gray-400 leading-relaxed pl-3 border-l-2 border-brand-600/20 italic cursor-pointer hover:text-gray-300 transition-colors"
@@ -152,8 +210,8 @@ export default function Compare() {
       {result && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {renderImageResult(result.image_a, 'Image A', result.winner === 'A')}
-            {renderImageResult(result.image_b, 'Image B', result.winner === 'B')}
+            {renderImageResult(result.image_a, 'Image A', result.winner === 'A', captionsA)}
+            {renderImageResult(result.image_b, 'Image B', result.winner === 'B', captionsB)}
           </div>
 
           <div className="glass-card p-4">
@@ -163,9 +221,47 @@ export default function Compare() {
             </p>
           </div>
 
+          {/* Upgrade prompt — only shows if no key and not already smart */}
+          {!isSmartCaptions && !getGeminiKey() && (
+            <div className="glass-card p-4">
+              {!showKeyInput ? (
+                <button
+                  onClick={() => setShowKeyInput(true)}
+                  className="text-xs text-brand-400/70 hover:text-brand-400 transition-colors w-full text-center"
+                >
+                  &#x2728; Get more precise captions with a free Gemini key
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-400">
+                    Paste a free{' '}
+                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 underline">
+                      Gemini API key
+                    </a>
+                    {' '}for photo-specific captions (one-time):
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={keyInput}
+                      onChange={(e) => setKeyInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSaveKey()}
+                      placeholder="Paste key here"
+                      className="flex-1 bg-white/[0.06] border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-500"
+                    />
+                    <button onClick={handleSaveKey} className="btn-primary px-3 py-1.5 text-xs">
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             onClick={() => {
               setFileA(null); setFileB(null); setPreviewA(null); setPreviewB(null); setResult(null)
+              setCaptionsA([]); setCaptionsB([]); setIsSmartCaptions(false); setShowKeyInput(false)
             }}
             className="btn-secondary w-full"
           >
