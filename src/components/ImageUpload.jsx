@@ -43,8 +43,8 @@ export default function ImageUpload({ onSelect, label = 'Upload Photo', preview,
       />
 
       {preview ? (
-        <div className="relative rounded-2xl overflow-hidden aspect-[4/3]">
-          <img src={preview} alt="Preview" className="w-full h-full object-cover" />
+        <div className="relative rounded-2xl overflow-hidden aspect-[4/3] bg-black/30">
+          <img src={preview} alt="Preview" className="w-full h-full object-contain" />
           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
             <span className="text-sm font-medium text-white">Change Photo</span>
           </div>
