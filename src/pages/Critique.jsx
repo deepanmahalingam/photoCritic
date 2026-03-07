@@ -2,7 +2,7 @@ import { useState } from 'react'
 import ImageUpload from '../components/ImageUpload'
 import CircularRating from '../components/CircularRating'
 import SkeletonLoader from '../components/SkeletonLoader'
-import { critiquePhoto } from '../lib/ai'
+import { critiquePhoto, generateSmartCaptions, getGeminiKey, saveGeminiKey } from '../lib/ai'
 import { addToHistory } from '../lib/storage'
 import { useAuth } from '../context/AuthContext'
 
@@ -13,22 +13,34 @@ export default function Critique() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Caption state
+  const [captions, setCaptions] = useState([])
+  const [isSmartCaptions, setIsSmartCaptions] = useState(false)
+  const [captionsLoading, setCaptionsLoading] = useState(false)
   const [copied, setCopied] = useState(-1)
+  const [showKeyInput, setShowKeyInput] = useState(false)
+  const [keyInput, setKeyInput] = useState('')
 
   const handleSelect = (f) => {
     setFile(f)
     setPreview(URL.createObjectURL(f))
     setResult(null)
+    setCaptions([])
+    setIsSmartCaptions(false)
     setError('')
   }
 
   const handleAnalyze = async () => {
     setLoading(true)
     setError('')
+    setCaptions([])
+    setIsSmartCaptions(false)
 
     try {
       const critique = await critiquePhoto(file)
       setResult(critique)
+      setCaptions(critique.captions || [])
 
       if (user) {
         addToHistory({
@@ -38,10 +50,41 @@ export default function Critique() {
           thumbnail: preview,
         })
       }
+
+      // If Gemini key exists, silently upgrade captions
+      const key = getGeminiKey()
+      if (key) {
+        upgradeToSmart(file, key)
+      }
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const upgradeToSmart = async (photoFile, key) => {
+    setCaptionsLoading(true)
+    try {
+      const smart = await generateSmartCaptions(photoFile, key)
+      if (smart.length > 0) {
+        setCaptions(smart)
+        setIsSmartCaptions(true)
+      }
+    } catch {
+      // Silently fail — offline captions remain
+    } finally {
+      setCaptionsLoading(false)
+    }
+  }
+
+  const handleSaveKey = () => {
+    if (!keyInput.trim()) return
+    saveGeminiKey(keyInput)
+    setKeyInput('')
+    setShowKeyInput(false)
+    if (result && file) {
+      upgradeToSmart(file, keyInput.trim())
     }
   }
 
@@ -133,7 +176,8 @@ export default function Critique() {
             </div>
           </div>
 
-          {result.captions && result.captions.length > 0 && (
+          {/* Caption Suggestions */}
+          {captions.length > 0 && (
             <div className="glass-card p-6">
               <h3 className="font-semibold mb-4 flex items-center gap-2">
                 <svg className="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -141,9 +185,18 @@ export default function Critique() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
                 </svg>
                 Caption Suggestions
+                {captionsLoading && (
+                  <svg className="animate-spin h-3.5 w-3.5 text-brand-400 ml-1" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                )}
+                {isSmartCaptions && !captionsLoading && (
+                  <span className="text-[10px] text-brand-400/70 font-normal ml-auto">&#x2728; Smart</span>
+                )}
               </h3>
               <div className="space-y-3">
-                {result.captions.map((caption, i) => (
+                {captions.map((caption, i) => (
                   <div
                     key={i}
                     className="flex items-start gap-3 group cursor-pointer rounded-lg p-2 -mx-2 hover:bg-white/[0.04] transition-colors"
@@ -165,13 +218,49 @@ export default function Critique() {
                     )}
                   </div>
                 ))}
-                <p className="text-xs text-gray-600 mt-1">Tap any caption to copy it</p>
+                <div className="flex items-center justify-between pt-1">
+                  <p className="text-xs text-gray-600">Tap any caption to copy it</p>
+                  {!isSmartCaptions && !getGeminiKey() && !showKeyInput && (
+                    <button
+                      onClick={() => setShowKeyInput(true)}
+                      className="text-xs text-brand-400/70 hover:text-brand-400 transition-colors"
+                    >
+                      &#x2728; Get precise captions
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {/* Inline key setup — compact, only shows when user clicks upgrade */}
+              {showKeyInput && (
+                <div className="mt-4 pt-4 border-t border-white/[0.06] space-y-2">
+                  <p className="text-xs text-gray-400">
+                    Paste a free{' '}
+                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 underline">
+                      Gemini API key
+                    </a>
+                    {' '}for photo-specific captions (one-time setup):
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={keyInput}
+                      onChange={(e) => setKeyInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSaveKey()}
+                      placeholder="Paste key here"
+                      className="flex-1 bg-white/[0.06] border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-500"
+                    />
+                    <button onClick={handleSaveKey} className="btn-primary px-3 py-1.5 text-xs">
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           <button
-            onClick={() => { setFile(null); setPreview(null); setResult(null) }}
+            onClick={() => { setFile(null); setPreview(null); setResult(null); setCaptions([]); setIsSmartCaptions(false); setShowKeyInput(false) }}
             className="btn-secondary w-full"
           >
             Analyze Another Photo

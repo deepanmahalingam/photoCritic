@@ -711,6 +711,79 @@ function generateCaptions(scores, analysis, sceneInfo, objectInfo) {
 }
 
 // ============================================================
+// GEMINI SMART CAPTIONS (optional upgrade — one-time API key)
+// ============================================================
+
+const GEMINI_KEY_STORAGE = 'photocritic_gemini_key'
+
+export function getGeminiKey() {
+  return localStorage.getItem(GEMINI_KEY_STORAGE) || ''
+}
+
+export function saveGeminiKey(key) {
+  localStorage.setItem(GEMINI_KEY_STORAGE, key.trim())
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result.split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+export async function generateSmartCaptions(file, apiKey) {
+  if (!apiKey) return []
+
+  const base64 = await fileToBase64(file)
+  const mimeType = file.type || 'image/jpeg'
+
+  const resp = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { inlineData: { mimeType, data: base64 } },
+            { text: `Look at this photo carefully. Generate exactly 5 creative, idiomatic caption suggestions for social media. Each caption should:
+- Directly reference specific things visible in the photo (objects, scene, colors, mood, setting)
+- Use idioms, metaphors, or poetic expressions that relate to what's actually in the image
+- Be short (under 15 words each)
+- Feel natural and creative, not generic
+
+Return ONLY a JSON array of 5 strings. No markdown, no explanation. Example format:
+["caption 1", "caption 2", "caption 3", "caption 4", "caption 5"]` },
+          ],
+        }],
+        generationConfig: { temperature: 0.9, maxOutputTokens: 300 },
+      }),
+    }
+  )
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}))
+    throw new Error(err.error?.message || 'Gemini API request failed')
+  }
+
+  const data = await resp.json()
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
+  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+
+  try {
+    const captions = JSON.parse(cleaned)
+    if (Array.isArray(captions)) return captions.slice(0, 5)
+  } catch {
+    const lines = cleaned.split('\n').filter(l => l.trim().length > 3).slice(0, 5)
+    return lines.map(l => l.replace(/^["'\d.\-–•]+\s*/, '').replace(/["']$/, '').trim())
+  }
+
+  return []
+}
+
+// ============================================================
 // PUBLIC API
 // ============================================================
 
