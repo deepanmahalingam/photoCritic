@@ -38,7 +38,6 @@ export default function ImageUpload({ onSelect, label = 'Upload Photo', preview,
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={(e) => handleFile(e.target.files[0])}
       />
