@@ -383,71 +383,17 @@ function deriveMood(analysis) {
 }
 
 // ============================================================
-// CAPTION PATTERNS — content-driven templates
+// GEMINI API KEY MANAGEMENT
 // ============================================================
 
-// Patterns use tokens: {subject}, {color}, {light}, {mood}, {obj}, {scene}
-// Each is filled with real detected data, not generic placeholders
-const CAPTION_PATTERNS = {
-  // Pattern 1: "[Subject] + [visual quality]" — directly references what's seen
-  subjectFirst: [
-    '{subject} bathed in {light} light',
-    '{subject} — where {color} tells the story',
-    '{subject}, draped in shades of {color}',
-    'A glimpse of {subject} under {light} skies',
-    '{subject} caught between shadow and {color}',
-    'The {light} side of {subject}',
-    '{subject} in its {mood} element',
-    'Finding {subject} where the {color} leads',
-  ],
+const GEMINI_KEY_STORAGE = 'photocritic_gemini_key'
 
-  // Pattern 2: "[Mood/feeling] + [what's in the photo]" — emotion-led
-  moodFirst: [
-    '{mood} — that\'s what {subject} looks like',
-    'The {mood} hour, starring {subject}',
-    'When {subject} meets {light} light, magic writes itself',
-    '{mood} vibes, courtesy of {subject}',
-    'Something {mood} about the way {subject} catches the {color}',
-    'A {mood} moment with {subject} and nothing else',
-  ],
+export function getGeminiKey() {
+  return localStorage.getItem(GEMINI_KEY_STORAGE) || ''
+}
 
-  // Pattern 3: Poetic/idiomatic — weaves detected content into expressions
-  idiomatic: [
-    'Not all that glitters is gold — some of it is {subject} in {color}',
-    'They say beauty is fleeting, but {subject} begs to differ',
-    'If {subject} could talk, it would speak in {color}',
-    'The world stopped for a second, and {subject} filled the frame',
-    'Some things are better seen than said — {subject} is one of them',
-    'Proof that {subject} and {light} light were made for each other',
-    'In a world full of noise, {subject} whispers in {color}',
-    'Let {subject} do the talking — the {color} says the rest',
-    'You don\'t find {subject} like this — it finds you',
-    'Between the lines of {color} and {light}, there\'s {subject}',
-  ],
-
-  // Pattern 4: Short & punchy — social-media ready
-  punchy: [
-    '{subject}. {color}. Enough said.',
-    '{light} light + {subject} = this.',
-    'Less filter, more {subject}.',
-    'Framed in {color}, found in {light}.',
-    '{subject} season never ends.',
-    'Main character: {subject}.',
-    '{color} hour with {subject}.',
-    'Just {subject} being {mood}.',
-  ],
-
-  // Pattern 5: With detected objects — when COCO-SSD finds something
-  withObject: [
-    '{obj} in a {color} world',
-    'Starring {obj}, directed by {light} light',
-    '{obj} never looked this {mood}',
-    'A study in {color}: {obj} edition',
-    'Where {obj} meets the {light} hour',
-    '{obj}, framed by {color} and silence',
-    'The {mood} life of {obj}',
-    'Portrait of {obj} in {color} light',
-  ],
+export function saveGeminiKey(key) {
+  localStorage.setItem(GEMINI_KEY_STORAGE, key.trim())
 }
 
 // ============================================================
@@ -546,87 +492,75 @@ function generateSummary(scores, analysis, sceneInfo, objectInfo) {
 }
 
 // ============================================================
-// CONTENT-DRIVEN CAPTION GENERATOR
+// GEMINI-POWERED CAPTION GENERATOR
 // ============================================================
 
-function generateCaptions(scores, analysis, sceneInfo, objectInfo) {
-  const { labels } = sceneInfo
-  const { objects } = objectInfo
-  const warmCool = deriveWarmCool(analysis)
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result.split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
 
-  // Build real descriptive tokens from what's actually detected
-  const rawLabel = (labels[0]?.name || '').toLowerCase()
-  const subject = rawLabel
-    .replace(/,.*$/, '')            // "golden retriever, dog" → "golden retriever"
-    .replace(/\b\w/g, c => c.toUpperCase()) // title case
-    .trim() || 'this moment'
+export async function generateCaptions(file, apiKey) {
+  if (!apiKey) return []
 
-  const mainObj = objects[0]
-    ? objects[0].charAt(0).toUpperCase() + objects[0].slice(1)
-    : null
+  const base64 = await fileToBase64(file)
+  const mimeType = file.type || 'image/jpeg'
 
-  // Descriptive color token (not just "red" but "warm red" / "deep blue")
-  const dc = analysis.dominantColor
-  const colorAdj = analysis.avgSaturation > 0.5 ? 'vivid' : analysis.avgSaturation > 0.25 ? 'soft' : 'muted'
-  const color = dc !== 'neutral' ? `${colorAdj} ${dc}` : 'monochrome'
+  const resp = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            {
+              inlineData: { mimeType, data: base64 },
+            },
+            {
+              text: `Look at this photo carefully. Generate exactly 5 creative, idiomatic caption suggestions for social media. Each caption should:
+- Directly reference specific things visible in the photo (objects, scene, colors, mood, setting)
+- Use idioms, metaphors, or poetic expressions that relate to what's actually in the image
+- Be short (under 15 words each)
+- Feel natural and creative, not generic
 
-  // Light description based on actual metrics
-  const light = analysis.avgBrightness > 180 ? 'golden'
-    : analysis.avgBrightness > 140 ? 'bright'
-    : analysis.avgBrightness > 100 ? (warmCool === 'warm' ? 'amber' : 'silver')
-    : analysis.avgBrightness > 60 ? 'twilight'
-    : 'shadow'
+Return ONLY a JSON array of 5 strings. No markdown, no explanation. Example format:
+["caption 1", "caption 2", "caption 3", "caption 4", "caption 5"]`,
+            },
+          ],
+        }],
+        generationConfig: {
+          temperature: 0.9,
+          maxOutputTokens: 300,
+        },
+      }),
+    }
+  )
 
-  // Short mood word
-  const mood = warmCool === 'warm' && analysis.avgBrightness > 130 ? 'radiant'
-    : warmCool === 'warm' ? 'cozy'
-    : warmCool === 'cool' && analysis.avgBrightness > 130 ? 'crisp'
-    : warmCool === 'cool' ? 'serene'
-    : analysis.avgBrightness > 170 ? 'dreamy'
-    : analysis.avgBrightness < 70 ? 'cinematic'
-    : 'timeless'
-
-  const subs = { subject, color, light, mood, obj: mainObj || subject, scene: sceneInfo.sceneType }
-
-  function fill(t) {
-    return t.replace(/\{(\w+)\}/g, (_, k) => subs[k] || k)
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}))
+    throw new Error(err.error?.message || 'Gemini API request failed')
   }
 
-  function pick(arr, n) {
-    const s = [...arr].sort(() => Math.random() - 0.5)
-    return s.slice(0, n)
+  const data = await resp.json()
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
+
+  // Parse the JSON array from the response
+  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+  try {
+    const captions = JSON.parse(cleaned)
+    if (Array.isArray(captions)) return captions.slice(0, 5)
+  } catch {
+    // Fallback: try to extract lines
+    const lines = cleaned.split('\n').filter(l => l.trim().length > 3).slice(0, 5)
+    return lines.map(l => l.replace(/^["'\d.\-–•]+\s*/, '').replace(/["']$/, '').trim())
   }
 
-  const captions = []
-
-  // 1. One subject-first caption (references the detected label directly)
-  captions.push(fill(pick(CAPTION_PATTERNS.subjectFirst, 1)[0]))
-
-  // 2. One mood-first caption
-  captions.push(fill(pick(CAPTION_PATTERNS.moodFirst, 1)[0]))
-
-  // 3. One idiomatic/poetic caption
-  captions.push(fill(pick(CAPTION_PATTERNS.idiomatic, 1)[0]))
-
-  // 4. One punchy/short caption
-  captions.push(fill(pick(CAPTION_PATTERNS.punchy, 1)[0]))
-
-  // 5. If objects detected, one object-specific caption; otherwise another idiomatic
-  if (mainObj) {
-    captions.push(fill(pick(CAPTION_PATTERNS.withObject, 1)[0]))
-  } else {
-    captions.push(fill(pick(CAPTION_PATTERNS.idiomatic, 1)[0]))
-  }
-
-  // Deduplicate (in rare case two patterns produce the same text)
-  const unique = [...new Set(captions)]
-  while (unique.length < 4) {
-    const extra = fill(pick(CAPTION_PATTERNS.subjectFirst, 1)[0])
-    if (!unique.includes(extra)) unique.push(extra)
-    else break
-  }
-
-  return unique.slice(0, 5)
+  return []
 }
 
 // ============================================================
@@ -658,9 +592,8 @@ export async function critiquePhoto(file) {
   const objectInfo = describeObjects(normalizedDetections)
   const feedback = generateFeedback(scores, analysis, sceneInfo, objectInfo)
   const summary = generateSummary(scores, analysis, sceneInfo, objectInfo)
-  const captions = generateCaptions(scores, analysis, sceneInfo, objectInfo)
 
-  return { ...scores, feedback, summary, captions }
+  return { ...scores, feedback, summary }
 }
 
 export async function comparePhotos(fileA, fileB) {
@@ -689,8 +622,6 @@ export async function comparePhotos(fileA, fileB) {
   const fbB = generateFeedback(scoresB, pxB, sceneB, objB)
   const sumA = generateSummary(scoresA, pxA, sceneA, objA)
   const sumB = generateSummary(scoresB, pxB, sceneB, objB)
-  const capA = generateCaptions(scoresA, pxA, sceneA, objA)
-  const capB = generateCaptions(scoresB, pxB, sceneB, objB)
 
   const winner = scoresA.overall_rating >= scoresB.overall_rating ? 'A' : 'B'
   const w = winner === 'A' ? scoresA : scoresB
@@ -706,8 +637,8 @@ export async function comparePhotos(fileA, fileB) {
   const reason = `Image ${winner} wins with ${reasons.join(' and ')}, scoring ${w.overall_rating}/10 vs ${l.overall_rating}/10.`
 
   return {
-    image_a: { ...scoresA, feedback: fbA, summary: sumA, captions: capA },
-    image_b: { ...scoresB, feedback: fbB, summary: sumB, captions: capB },
+    image_a: { ...scoresA, feedback: fbA, summary: sumA },
+    image_b: { ...scoresB, feedback: fbB, summary: sumB },
     winner, reason,
   }
 }
