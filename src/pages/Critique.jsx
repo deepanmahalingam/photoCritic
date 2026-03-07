@@ -231,29 +231,51 @@ export default function Critique() {
                 </div>
               </div>
 
-              {/* Inline key setup — compact, only shows when user clicks upgrade */}
+              {/* Inline key setup — step-by-step guide */}
               {showKeyInput && (
-                <div className="mt-4 pt-4 border-t border-white/[0.06] space-y-2">
-                  <p className="text-xs text-gray-400">
-                    Paste a free{' '}
-                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 underline">
-                      Gemini API key
-                    </a>
-                    {' '}for photo-specific captions (one-time setup):
-                  </p>
+                <div className="mt-4 pt-4 border-t border-white/[0.06] space-y-3">
+                  <div className="bg-brand-500/[0.08] border border-brand-500/20 rounded-xl p-4 space-y-3">
+                    <p className="text-xs font-semibold text-brand-400 flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                      </svg>
+                      Get AI-Powered Captions — Free &amp; One-Time Setup
+                    </p>
+                    <ol className="space-y-2 text-xs text-gray-400">
+                      <li className="flex gap-2">
+                        <span className="text-brand-400 font-bold shrink-0">1.</span>
+                        <span>
+                          Go to{' '}
+                          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 underline font-medium">
+                            Google AI Studio
+                          </a>
+                          {' '}and sign in with your Google account
+                        </span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-brand-400 font-bold shrink-0">2.</span>
+                        <span>Click <span className="text-white font-medium">"Create API Key"</span> — it's completely free, no credit card needed</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-brand-400 font-bold shrink-0">3.</span>
+                        <span>Copy the key and paste it below — we'll save it locally in your browser. You only need to do this once!</span>
+                      </li>
+                    </ol>
+                  </div>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={keyInput}
                       onChange={(e) => setKeyInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSaveKey()}
-                      placeholder="Paste key here"
-                      className="flex-1 bg-white/[0.06] border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-500"
+                      placeholder="Paste your API key here"
+                      className="flex-1 bg-white/[0.06] border border-white/[0.1] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-500"
                     />
-                    <button onClick={handleSaveKey} className="btn-primary px-3 py-1.5 text-xs">
+                    <button onClick={handleSaveKey} className="btn-primary px-4 py-2 text-xs">
                       Save
                     </button>
                   </div>
+                  <p className="text-[10px] text-gray-600 text-center">Your key stays on your device — never sent to any server except Google's API</p>
                 </div>
               )}
             </div>
