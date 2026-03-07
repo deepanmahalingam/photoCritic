@@ -24,6 +24,9 @@ export default function Compare() {
   const [showKeyInput, setShowKeyInput] = useState(false)
   const [keyInput, setKeyInput] = useState('')
 
+  // Share state
+  const [shareToast, setShareToast] = useState('')
+
   const handleSelectA = (f) => {
     setFileA(f); setPreviewA(URL.createObjectURL(f)); setResult(null); setError('')
     setCaptionsA([]); setIsSmartCaptions(false)
@@ -94,7 +97,44 @@ export default function Compare() {
     }
   }
 
-  const renderImageResult = (data, label, isWinner, captions) => (
+  const handleShareInstagram = async (imgFile, imgCaptions) => {
+    if (!imgFile || !imgCaptions?.length) return
+    const caption = imgCaptions[0]
+
+    if (navigator.share && navigator.canShare?.({ files: [imgFile] })) {
+      try {
+        await navigator.share({ files: [imgFile], text: caption })
+        setShareToast('Shared successfully!')
+        setTimeout(() => setShareToast(''), 3000)
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          setShareToast('Share cancelled')
+          setTimeout(() => setShareToast(''), 2000)
+        }
+      }
+      return
+    }
+
+    try {
+      const url = URL.createObjectURL(imgFile)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = imgFile.name || 'photo.jpg'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      await navigator.clipboard?.writeText(caption)
+      setShareToast('Image downloaded & caption copied — open Instagram to post!')
+      setTimeout(() => setShareToast(''), 4000)
+    } catch {
+      setShareToast('Could not share — try saving the image manually')
+      setTimeout(() => setShareToast(''), 3000)
+    }
+  }
+
+  const renderImageResult = (data, label, isWinner, captions, imgFile) => (
     <div className={`glass-card p-4 relative ${isWinner ? 'ring-2 ring-green-500/40' : ''}`}>
       {isWinner && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500 text-black text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
@@ -158,6 +198,18 @@ export default function Compare() {
           ))}
         </div>
       )}
+      {captions && captions.length > 0 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); handleShareInstagram(imgFile, captions) }}
+          className="w-full mt-3 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-white transition-all duration-200 hover:opacity-90 active:scale-[0.98]"
+          style={{ background: 'linear-gradient(135deg, #833AB4, #C13584, #E1306C, #F77737, #FCAF45)' }}
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
+          </svg>
+          Share to Instagram
+        </button>
+      )}
     </div>
   )
 
@@ -210,8 +262,8 @@ export default function Compare() {
       {result && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {renderImageResult(result.image_a, 'Image A', result.winner === 'A', captionsA)}
-            {renderImageResult(result.image_b, 'Image B', result.winner === 'B', captionsB)}
+            {renderImageResult(result.image_a, 'Image A', result.winner === 'A', captionsA, fileA)}
+            {renderImageResult(result.image_b, 'Image B', result.winner === 'B', captionsB, fileB)}
           </div>
 
           <div className={`glass-card p-4 ${result.winner === 'tie' ? 'ring-1 ring-yellow-500/30' : ''}`}>
@@ -282,10 +334,20 @@ export default function Compare() {
             </div>
           )}
 
+          {/* Share toast notification */}
+          {shareToast && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 border border-white/10 text-white text-sm px-5 py-3 rounded-xl shadow-2xl animate-in fade-in slide-in-from-bottom-4 flex items-center gap-2 max-w-[90vw]">
+              <svg className="w-4 h-4 text-green-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+              {shareToast}
+            </div>
+          )}
+
           <button
             onClick={() => {
               setFileA(null); setFileB(null); setPreviewA(null); setPreviewB(null); setResult(null)
-              setCaptionsA([]); setCaptionsB([]); setIsSmartCaptions(false); setShowKeyInput(false)
+              setCaptionsA([]); setCaptionsB([]); setIsSmartCaptions(false); setShowKeyInput(false); setShareToast('')
             }}
             className="btn-secondary w-full"
           >
