@@ -383,198 +383,71 @@ function deriveMood(analysis) {
 }
 
 // ============================================================
-// IDIOM BANK — multi-layered caption templates
+// CAPTION PATTERNS — content-driven templates
 // ============================================================
 
-const IDIOM_BANK = {
-  scene: {
-    landscape: [
-      'The world is a canvas, and {dominantColor} is today\'s chosen hue',
-      'Where the horizon whispers promises to the earth',
-      'Still waters run deep, and so does this view',
-      'Not all who wander are lost — some find views like this',
-      'Miles to go before I sleep, but this view demands a pause',
-      'Nature\'s cathedral needs no roof',
-      'Every mountain top is within reach if you keep climbing',
-      'The earth has music for those who listen',
-    ],
-    nature: [
-      'Let nature be your teacher — it speaks in {dominantColor}',
-      'Where wildflowers write their own poetry',
-      'Mighty oaks from little acorns grow — and this one\'s thriving',
-      'A thing of beauty is a joy forever',
-      'In every walk with nature, one receives far more than they seek',
-      'Bloom where you are planted',
-      'The earth laughs in flowers',
-      'Green is the prime color of the world, and that from which its loveliness arises',
-    ],
-    sky: [
-      'Every cloud has a {dominantColor} lining',
-      'The sky\'s the limit, and the limit is {mood}',
-      'Chasing horizons and catching {dominantColor} dreams',
-      'Above the clouds, the sky is always clear',
-      'Where the sky paints its own masterpiece',
-      'Sunsets are proof that endings can be beautiful too',
-      'The sky broke like an egg into full sunset',
-    ],
-    architecture: [
-      'Built on solid ground, framed in {warmCool} light',
-      'Rome wasn\'t built in a day, but it was photographed in a moment',
-      'A house is made of walls and beams; a photo is made of light and dreams',
-      'Standing the test of time, one frame at a time',
-      'Where stone meets sky, stories are written in light',
-      'Every wall tells a tale if you know how to listen',
-    ],
-    street: [
-      'The road less traveled makes all the difference',
-      'Life moves fast — this frame holds it still',
-      'Every street has a story, and this one\'s {mood}',
-      'Where the pavement meets the golden hour',
-      'The city never sleeps, but it poses beautifully',
-      'Concrete jungle where dreams are made of light',
-    ],
-    portrait: [
-      'A picture is worth a thousand words, but this face tells the whole story',
-      'The eyes are the window to the soul — and this window\'s wide open',
-      'Still waters run deep, and so does this gaze',
-      'Every face tells a story worth framing',
-      'Beauty is truth, truth beauty — that is all you need to know',
-      'In every face, a universe of stories waits to unfold',
-    ],
-    animal: [
-      'Every dog has its day, and this one\'s {mood}',
-      'The early bird gets the shot — and what a shot it is',
-      'Wild at heart, perfectly framed',
-      'Curiosity captured the {topLabel}',
-      'A leopard can\'t change its spots, but it can strike a pose',
-      'In the wild, beauty needs no filter',
-      'Eyes that speak louder than words ever could',
-    ],
-    food: [
-      'A feast for the eyes before the palate',
-      'The proof of the pudding is in the {dominantColor} plating',
-      'Too many cooks? Not in this kitchen masterpiece',
-      'Good enough to eat, better to frame',
-      'The icing on the cake of visual storytelling',
-      'Life is short — eat the good food and photograph it first',
-      'Where flavor meets frame',
-    ],
-    vehicle: [
-      'Life in the fast lane, frozen in {warmCool} light',
-      'The wheels of time stop for no one — except this shutter',
-      'Built for speed, captured for eternity',
-      'Where the rubber meets the road, the light meets the lens',
-      'Going the extra mile, one frame at a time',
-      'Not the destination, but the journey — and the ride',
-    ],
-    interior: [
-      'Home is where the {warmCool} light is',
-      'A room with a view — and a story to tell',
-      'There\'s no place like this frame',
-      'Behind closed doors, open compositions',
-      'Where four walls become a canvas',
-      'The comfort of light finding its way home',
-    ],
-    general: [
-      'A picture is worth a thousand words — this one\'s a novel',
-      'Seeing is believing, and this is {mood}',
-      'Frame by frame, the story unfolds',
-      'The best things in life are framed',
-      'Light, shadow, and everything in between',
-      'Some moments are too good not to frame',
-      'Where vision meets the viewfinder',
-    ],
-  },
+// Patterns use tokens: {subject}, {color}, {light}, {mood}, {obj}, {scene}
+// Each is filled with real detected data, not generic placeholders
+const CAPTION_PATTERNS = {
+  // Pattern 1: "[Subject] + [visual quality]" — directly references what's seen
+  subjectFirst: [
+    '{subject} bathed in {light} light',
+    '{subject} — where {color} tells the story',
+    '{subject}, draped in shades of {color}',
+    'A glimpse of {subject} under {light} skies',
+    '{subject} caught between shadow and {color}',
+    'The {light} side of {subject}',
+    '{subject} in its {mood} element',
+    'Finding {subject} where the {color} leads',
+  ],
 
-  mood: {
-    'inviting and nostalgic': [
-      'Wrapped in golden hour memories',
-      'Yesterday called — it wants this moment back',
-      'Nostalgia never looked so warm',
-    ],
-    'intimate and atmospheric': [
-      'Whispered tones and quiet drama',
-      'In the hush between shadows',
-      'Where shadows and warmth hold a conversation',
-    ],
-    'fresh and contemporary': [
-      'Clean lines, clear vision',
-      'Cool as the morning light',
-      'A breath of fresh composition',
-    ],
-    'moody and contemplative': [
-      'Deep thoughts, deeper shadows',
-      'Still waters, brooding skies',
-      'The quiet before the visual storm',
-    ],
-    'airy and ethereal': [
-      'Light as a feather, strong as a frame',
-      'Dancing on the edge of light',
-      'Walking on sunshine, framed in gold',
-    ],
-    'dramatic and cinematic': [
-      'Lights, camera, no action needed',
-      'The plot thickens with every shadow',
-      'Cinema-worthy, no script required',
-    ],
-    'balanced and polished': [
-      'The Goldilocks zone of photography — just right',
-      'Neither too much nor too little — the sweet spot',
-      'Equilibrium in every pixel',
-    ],
-  },
+  // Pattern 2: "[Mood/feeling] + [what's in the photo]" — emotion-led
+  moodFirst: [
+    '{mood} — that\'s what {subject} looks like',
+    'The {mood} hour, starring {subject}',
+    'When {subject} meets {light} light, magic writes itself',
+    '{mood} vibes, courtesy of {subject}',
+    'Something {mood} about the way {subject} catches the {color}',
+    'A {mood} moment with {subject} and nothing else',
+  ],
 
-  object: {
-    dog: ['Every dog has its day, and this one stole the show', 'Who let the dogs out? Into this perfect frame'],
-    cat: ['Curiosity didn\'t just spare this cat — it made it photogenic', 'The cat\'s meow, in {dominantColor} tones'],
-    person: ['Strike a pose, the light does the rest', 'The human element that brings the frame to life'],
-    car: ['Life in the fast lane never looked so {mood}', 'Parked in perfection'],
-    bird: ['A bird in the frame is worth two in the bush', 'Free as a bird, sharp as the focus'],
-    bicycle: ['Life is like riding a bicycle — balance makes it beautiful', 'Two wheels, one perfect frame'],
-    horse: ['Hold your horses — this shot deserves a second look', 'Straight from the horse\'s mouth: this is a winner'],
-    boat: ['Whatever floats your boat — this one floats beautifully', 'Smooth sailing in {warmCool} waters'],
-    truck: ['Built tough, framed gently', 'Heavy metal, light touch'],
-    motorcycle: ['Born to be wild, framed to be remembered', 'Chrome and character in equal measure'],
-    bus: ['Next stop: a frame worth remembering', 'The journey is the destination'],
-    train: ['All aboard the {dominantColor} express', 'On the right track to a great shot'],
-    airplane: ['The sky is not the limit — it\'s just the beginning', 'Clear for takeoff into the frame'],
-    bench: ['Take a seat and soak in the view', 'Rest here — the scenery does the talking'],
-    umbrella: ['Come rain or shine, this frame delivers', 'Under cover of {dominantColor} skies'],
-    backpack: ['Adventure is out there, and it looks like this', 'Packed with stories, framed with care'],
-    clock: ['Time stands still in a good photograph', 'Every second counts, this one\'s timeless'],
-    potted_plant: ['Bloom where you are planted — even indoors', 'A little green goes a long way'],
-    cup: ['But first, let me photograph this', 'Stirring up some {warmCool} vibes'],
-    bottle: ['Message in a bottle, story in a frame', 'Bottled up and ready to share'],
-  },
+  // Pattern 3: Poetic/idiomatic — weaves detected content into expressions
+  idiomatic: [
+    'Not all that glitters is gold — some of it is {subject} in {color}',
+    'They say beauty is fleeting, but {subject} begs to differ',
+    'If {subject} could talk, it would speak in {color}',
+    'The world stopped for a second, and {subject} filled the frame',
+    'Some things are better seen than said — {subject} is one of them',
+    'Proof that {subject} and {light} light were made for each other',
+    'In a world full of noise, {subject} whispers in {color}',
+    'Let {subject} do the talking — the {color} says the rest',
+    'You don\'t find {subject} like this — it finds you',
+    'Between the lines of {color} and {light}, there\'s {subject}',
+  ],
 
-  color: {
-    red: ['Painting the town red, one pixel at a time', 'Red-hot and ready for its close-up'],
-    orange: ['Orange you glad you took this shot', 'Amber waves of visual grace'],
-    yellow: ['Good as gold, and twice as luminous', 'Mellow yellow, sharp composition'],
-    chartreuse: ['Between green and gold, magic happens', 'Where spring meets the shutter'],
-    green: ['The grass is greener in this frame', 'Green with envy — anyone would be'],
-    'spring green': ['Fresh as the first day of spring', 'Where green means go — straight to the gallery'],
-    cyan: ['Cool, calm, and composed — just like this shot', 'Crystal clear vision in every tone'],
-    azure: ['Blue skies and brighter frames', 'Azure dreams caught on camera'],
-    blue: ['Out of the blue, into the frame', 'Once in a blue moon, a shot like this comes along'],
-    violet: ['Shrinking violet? Not this composition', 'Purple reign over light and shadow'],
-    magenta: ['Bold, electric, and unapologetically vibrant', 'Where magenta meets the moment'],
-    rose: ['Stop and smell the roses — then photograph them', 'Every rose has its frame'],
-    neutral: ['Shades of gray, worlds of meaning', 'Neutral tones, bold statement'],
-  },
+  // Pattern 4: Short & punchy — social-media ready
+  punchy: [
+    '{subject}. {color}. Enough said.',
+    '{light} light + {subject} = this.',
+    'Less filter, more {subject}.',
+    'Framed in {color}, found in {light}.',
+    '{subject} season never ends.',
+    'Main character: {subject}.',
+    '{color} hour with {subject}.',
+    'Just {subject} being {mood}.',
+  ],
 
-  quality: {
-    high: [
-      'Chef\'s kiss to the photographer',
-      'They didn\'t just capture a moment — they captured lightning in a bottle',
-      'Perfection, thy name is this photograph',
-    ],
-    low: [
-      'A diamond in the rough — polish the exposure and watch it shine',
-      'Rome wasn\'t shot in a day — keep clicking',
-      'The journey of a thousand great photos begins with a single shutter click',
-    ],
-  },
+  // Pattern 5: With detected objects — when COCO-SSD finds something
+  withObject: [
+    '{obj} in a {color} world',
+    'Starring {obj}, directed by {light} light',
+    '{obj} never looked this {mood}',
+    'A study in {color}: {obj} edition',
+    'Where {obj} meets the {light} hour',
+    '{obj}, framed by {color} and silence',
+    'The {mood} life of {obj}',
+    'Portrait of {obj} in {color} light',
+  ],
 }
 
 // ============================================================
@@ -673,92 +546,87 @@ function generateSummary(scores, analysis, sceneInfo, objectInfo) {
 }
 
 // ============================================================
-// IDIOMATIC CAPTION GENERATOR
+// CONTENT-DRIVEN CAPTION GENERATOR
 // ============================================================
 
 function generateCaptions(scores, analysis, sceneInfo, objectInfo) {
-  const { sceneType, labels } = sceneInfo
+  const { labels } = sceneInfo
   const { objects } = objectInfo
   const warmCool = deriveWarmCool(analysis)
-  const mood = deriveMood(analysis)
-  const topLabel = labels[0]?.name || 'subject'
-  const dominantColor = analysis.dominantColor
 
-  const subs = { dominantColor, warmCool, mood, topLabel }
+  // Build real descriptive tokens from what's actually detected
+  const rawLabel = (labels[0]?.name || '').toLowerCase()
+  const subject = rawLabel
+    .replace(/,.*$/, '')            // "golden retriever, dog" → "golden retriever"
+    .replace(/\b\w/g, c => c.toUpperCase()) // title case
+    .trim() || 'this moment'
 
-  function fill(template) {
-    return template.replace(/\{(\w+)\}/g, (_, key) => subs[key] || key)
+  const mainObj = objects[0]
+    ? objects[0].charAt(0).toUpperCase() + objects[0].slice(1)
+    : null
+
+  // Descriptive color token (not just "red" but "warm red" / "deep blue")
+  const dc = analysis.dominantColor
+  const colorAdj = analysis.avgSaturation > 0.5 ? 'vivid' : analysis.avgSaturation > 0.25 ? 'soft' : 'muted'
+  const color = dc !== 'neutral' ? `${colorAdj} ${dc}` : 'monochrome'
+
+  // Light description based on actual metrics
+  const light = analysis.avgBrightness > 180 ? 'golden'
+    : analysis.avgBrightness > 140 ? 'bright'
+    : analysis.avgBrightness > 100 ? (warmCool === 'warm' ? 'amber' : 'silver')
+    : analysis.avgBrightness > 60 ? 'twilight'
+    : 'shadow'
+
+  // Short mood word
+  const mood = warmCool === 'warm' && analysis.avgBrightness > 130 ? 'radiant'
+    : warmCool === 'warm' ? 'cozy'
+    : warmCool === 'cool' && analysis.avgBrightness > 130 ? 'crisp'
+    : warmCool === 'cool' ? 'serene'
+    : analysis.avgBrightness > 170 ? 'dreamy'
+    : analysis.avgBrightness < 70 ? 'cinematic'
+    : 'timeless'
+
+  const subs = { subject, color, light, mood, obj: mainObj || subject, scene: sceneInfo.sceneType }
+
+  function fill(t) {
+    return t.replace(/\{(\w+)\}/g, (_, k) => subs[k] || k)
   }
 
-  function pickRandom(arr, n) {
-    const shuffled = [...arr].sort(() => Math.random() - 0.5)
-    return shuffled.slice(0, n)
+  function pick(arr, n) {
+    const s = [...arr].sort(() => Math.random() - 0.5)
+    return s.slice(0, n)
   }
 
-  // Build candidate pool from all layers
-  const candidates = []
+  const captions = []
 
-  // Layer 1: Scene (3-4 from scene type)
-  const scenePool = IDIOM_BANK.scene[sceneType] || IDIOM_BANK.scene.general
-  candidates.push(...pickRandom(scenePool, 4).map(fill))
+  // 1. One subject-first caption (references the detected label directly)
+  captions.push(fill(pick(CAPTION_PATTERNS.subjectFirst, 1)[0]))
 
-  // Layer 2: Mood (1-2 from mood)
-  const moodPool = IDIOM_BANK.mood[mood] || []
-  if (moodPool.length) candidates.push(...pickRandom(moodPool, 2).map(fill))
+  // 2. One mood-first caption
+  captions.push(fill(pick(CAPTION_PATTERNS.moodFirst, 1)[0]))
 
-  // Layer 3: Object (1 per detected object, max 2)
-  for (const obj of objects.slice(0, 2)) {
-    const objPool = IDIOM_BANK.object[obj]
-    if (objPool) candidates.push(...pickRandom(objPool, 1).map(fill))
+  // 3. One idiomatic/poetic caption
+  captions.push(fill(pick(CAPTION_PATTERNS.idiomatic, 1)[0]))
+
+  // 4. One punchy/short caption
+  captions.push(fill(pick(CAPTION_PATTERNS.punchy, 1)[0]))
+
+  // 5. If objects detected, one object-specific caption; otherwise another idiomatic
+  if (mainObj) {
+    captions.push(fill(pick(CAPTION_PATTERNS.withObject, 1)[0]))
+  } else {
+    captions.push(fill(pick(CAPTION_PATTERNS.idiomatic, 1)[0]))
   }
 
-  // Layer 4: Color (1 if not neutral)
-  if (dominantColor !== 'neutral') {
-    const colorPool = IDIOM_BANK.color[dominantColor] || []
-    if (colorPool.length) candidates.push(fill(pickRandom(colorPool, 1)[0]))
-  }
-
-  // Layer 5: Quality-aware (1 for extreme scores)
-  if (scores.overall_rating >= 8) {
-    candidates.push(...pickRandom(IDIOM_BANK.quality.high, 1))
-  } else if (scores.overall_rating <= 3) {
-    candidates.push(...pickRandom(IDIOM_BANK.quality.low, 1))
-  }
-
-  // Deduplicate
-  const unique = [...new Set(candidates)]
-
-  // Prioritize variety: pick 1 from each layer first, then fill remaining
-  const final = []
-  const sceneFilled = scenePool.map(fill)
-  const moodFilled = moodPool.map(fill)
-
-  // One from scene
-  const fromScene = unique.find(c => sceneFilled.includes(c))
-  if (fromScene) final.push(fromScene)
-
-  // One from mood
-  const fromMood = unique.find(c => moodFilled.includes(c) && !final.includes(c))
-  if (fromMood) final.push(fromMood)
-
-  // One from object/color
-  const fromObj = unique.find(c => !final.includes(c) && !sceneFilled.includes(c) && !moodFilled.includes(c))
-  if (fromObj) final.push(fromObj)
-
-  // Fill remaining from pool
-  for (const c of unique) {
-    if (final.length >= 5) break
-    if (!final.includes(c)) final.push(c)
-  }
-
-  // Pad if needed
-  while (final.length < 4) {
-    const fallback = pickRandom(IDIOM_BANK.scene.general, 1).map(fill)
-    if (!final.includes(fallback[0])) final.push(fallback[0])
+  // Deduplicate (in rare case two patterns produce the same text)
+  const unique = [...new Set(captions)]
+  while (unique.length < 4) {
+    const extra = fill(pick(CAPTION_PATTERNS.subjectFirst, 1)[0])
+    if (!unique.includes(extra)) unique.push(extra)
     else break
   }
 
-  return final.slice(0, 5)
+  return unique.slice(0, 5)
 }
 
 // ============================================================
