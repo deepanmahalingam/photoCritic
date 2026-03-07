@@ -324,31 +324,31 @@ function analyzePixels(pixels) {
   }
 }
 
-function computeScores(a) {
+function computeRawScores(a) {
   let comp = 5
   comp += Math.min(2.5, a.thirds * 25)
   comp += a.symmetry > 0.7 ? 1 : a.symmetry > 0.5 ? 0.5 : 0
   const gr = [16 / 9, 4 / 3, 3 / 2, 1, 2 / 3, 3 / 4]
   comp += Math.min(...gr.map(r => Math.abs(a.aspectRatio - r))) < 0.1 ? 0.5 : 0
-  comp = Math.max(1, Math.min(10, Math.round(comp)))
+  comp = Math.max(1, Math.min(10, comp))
 
   let light = 5
   light += (1 - Math.abs(a.avgBrightness - 130) / 130) * 2
   light += Math.min(1, a.contrast / 70) * 2
   light -= a.shadowClip * 8 + a.highlightClip * 8
-  light = Math.max(1, Math.min(10, Math.round(light)))
+  light = Math.max(1, Math.min(10, light))
 
   let color = 5
   color += (1 - Math.min(1, Math.abs(a.avgSaturation - 0.4) / 0.4)) * 2
   color += (1 - Math.min(1, Math.abs(a.warmth - 1.1) / 1.1))
   color += a.colorVar * 1.5
-  color = Math.max(1, Math.min(10, Math.round(color)))
+  color = Math.max(1, Math.min(10, color))
 
   let tech = 5
   tech += Math.min(1, a.sharpness / 25) * 3
   if (a.avgBrightness < 40 || a.avgBrightness > 230) tech -= 2
   tech -= (a.shadowClip + a.highlightClip) * 4
-  tech = Math.max(1, Math.min(10, Math.round(tech)))
+  tech = Math.max(1, Math.min(10, tech))
 
   let art = 4
   art += (1 - Math.abs(a.negSpace - 0.45) / 0.45) * 1.5
@@ -357,10 +357,45 @@ function computeScores(a) {
   art += a.harmony * 1.5
   art += Math.min(1, a.depthG * 4)
   art += (1 - Math.abs(Math.min(1, a.texComp / 30) - 0.5) * 2)
-  art = Math.max(1, Math.min(10, Math.round(art)))
+  art = Math.max(1, Math.min(10, art))
 
-  const overall = Math.round((comp + light + color + tech + art) / 5)
+  const overall = (comp + light + color + tech + art) / 5
   return { overall_rating: overall, composition: comp, lighting: light, color_balance: color, technical_quality: tech, artistic_quality: art }
+}
+
+// Add AI-model bonus: scene confidence, object count, and detection quality
+function applyModelBonus(rawScores, classifications, detections) {
+  const topConf = classifications[0]?.probability || 0
+  const objCount = detections.length
+  const avgObjConf = objCount > 0 ? detections.reduce((s, d) => s + d.score, 0) / objCount : 0
+
+  // Clear subject = sharper content = better composition & artistic merit
+  const compBonus = Math.min(0.5, avgObjConf * 0.4 + (objCount > 0 ? 0.1 : 0))
+  const artBonus = Math.min(0.6, topConf * 0.3 + (objCount >= 2 ? 0.15 : 0) + (avgObjConf > 0.6 ? 0.15 : 0))
+  const techBonus = Math.min(0.4, avgObjConf * 0.3 + (topConf > 0.3 ? 0.1 : 0))
+
+  const s = { ...rawScores }
+  s.composition = Math.max(1, Math.min(10, s.composition + compBonus))
+  s.artistic_quality = Math.max(1, Math.min(10, s.artistic_quality + artBonus))
+  s.technical_quality = Math.max(1, Math.min(10, s.technical_quality + techBonus))
+  s.overall_rating = (s.composition + s.lighting + s.color_balance + s.technical_quality + s.artistic_quality) / 5
+  return s
+}
+
+// Round scores for display, keep raw precision internally
+function roundScores(raw) {
+  return {
+    overall_rating: Math.round(raw.overall_rating),
+    composition: Math.round(raw.composition),
+    lighting: Math.round(raw.lighting),
+    color_balance: Math.round(raw.color_balance),
+    technical_quality: Math.round(raw.technical_quality),
+    artistic_quality: Math.round(raw.artistic_quality),
+  }
+}
+
+function computeScores(a) {
+  return roundScores(computeRawScores(a))
 }
 
 // ============================================================
@@ -822,8 +857,6 @@ export async function comparePhotos(fileA, fileB) {
 
   const pxA = analyzePixels(getPixelData(imgA))
   const pxB = analyzePixels(getPixelData(imgB))
-  const scoresA = computeScores(pxA)
-  const scoresB = computeScores(pxB)
 
   const [classA, classB, detA, detB] = await Promise.all([
     mobilenetModel.classify(imgA, 5), mobilenetModel.classify(imgB, 5),
@@ -836,6 +869,14 @@ export async function comparePhotos(fileA, fileB) {
   URL.revokeObjectURL(imgA.src)
   URL.revokeObjectURL(imgB.src)
 
+  // Compute raw (unrounded) scores and apply AI model bonuses
+  const rawA = applyModelBonus(computeRawScores(pxA), classA, detA)
+  const rawB = applyModelBonus(computeRawScores(pxB), classB, detB)
+
+  // Round for display
+  const scoresA = roundScores(rawA)
+  const scoresB = roundScores(rawB)
+
   const sceneA = categorizeScene(classA), sceneB = categorizeScene(classB)
   const objA = describeObjects(normDetA), objB = describeObjects(normDetB)
 
@@ -844,18 +885,47 @@ export async function comparePhotos(fileA, fileB) {
   const sumA = generateSummary(scoresA, pxA, sceneA, objA)
   const sumB = generateSummary(scoresB, pxB, sceneB, objB)
 
-  const winner = scoresA.overall_rating >= scoresB.overall_rating ? 'A' : 'B'
-  const w = winner === 'A' ? scoresA : scoresB
-  const l = winner === 'A' ? scoresB : scoresA
-  const reasons = []
-  if (w.composition > l.composition) reasons.push('better composition')
-  if (w.lighting > l.lighting) reasons.push('superior lighting')
-  if (w.color_balance > l.color_balance) reasons.push('more balanced colors')
-  if (w.technical_quality > l.technical_quality) reasons.push('higher technical quality')
-  if (w.artistic_quality > l.artistic_quality) reasons.push('stronger artistic vision')
-  if (!reasons.length) reasons.push('overall stronger execution')
+  // Use raw (precise) scores to determine winner — avoids rounding ties
+  const diff = rawA.overall_rating - rawB.overall_rating
+  const TIE_THRESHOLD = 0.15 // scores within 0.15 of each other = tie
+  let winner, reason
 
-  const reason = `Image ${winner} wins with ${reasons.join(' and ')}, scoring ${w.overall_rating}/10 vs ${l.overall_rating}/10.`
+  if (Math.abs(diff) < TIE_THRESHOLD) {
+    winner = 'tie'
+    // Even in a tie, highlight what each photo does better
+    const aWins = [], bWins = []
+    if (rawA.composition > rawB.composition + 0.1) aWins.push('composition')
+    if (rawB.composition > rawA.composition + 0.1) bWins.push('composition')
+    if (rawA.lighting > rawB.lighting + 0.1) aWins.push('lighting')
+    if (rawB.lighting > rawA.lighting + 0.1) bWins.push('lighting')
+    if (rawA.color_balance > rawB.color_balance + 0.1) aWins.push('color balance')
+    if (rawB.color_balance > rawA.color_balance + 0.1) bWins.push('color balance')
+    if (rawA.technical_quality > rawB.technical_quality + 0.1) aWins.push('technical quality')
+    if (rawB.technical_quality > rawA.technical_quality + 0.1) bWins.push('technical quality')
+    if (rawA.artistic_quality > rawB.artistic_quality + 0.1) aWins.push('artistic vision')
+    if (rawB.artistic_quality > rawA.artistic_quality + 0.1) bWins.push('artistic vision')
+
+    if (aWins.length && bWins.length) {
+      reason = `It's a close call! Image A edges ahead in ${aWins.join(' and ')}, while Image B shines in ${bWins.join(' and ')}. Both score ${scoresA.overall_rating}/10.`
+    } else {
+      reason = `Both photos are evenly matched at ${scoresA.overall_rating}/10 — each has its own strengths.`
+    }
+  } else {
+    winner = diff > 0 ? 'A' : 'B'
+    const w = winner === 'A' ? rawA : rawB
+    const l = winner === 'A' ? rawB : rawA
+    const wDisp = winner === 'A' ? scoresA : scoresB
+    const lDisp = winner === 'A' ? scoresB : scoresA
+    const reasons = []
+    if (w.composition > l.composition + 0.1) reasons.push('better composition')
+    if (w.lighting > l.lighting + 0.1) reasons.push('superior lighting')
+    if (w.color_balance > l.color_balance + 0.1) reasons.push('more balanced colors')
+    if (w.technical_quality > l.technical_quality + 0.1) reasons.push('higher technical quality')
+    if (w.artistic_quality > l.artistic_quality + 0.1) reasons.push('stronger artistic vision')
+    if (!reasons.length) reasons.push('overall stronger execution')
+
+    reason = `Image ${winner} wins with ${reasons.join(' and ')}, scoring ${wDisp.overall_rating}/10 vs ${lDisp.overall_rating}/10.`
+  }
 
   const capsA = generateCaptions(scoresA, pxA, sceneA, objA)
   const capsB = generateCaptions(scoresB, pxB, sceneB, objB)

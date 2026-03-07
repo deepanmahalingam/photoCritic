@@ -214,9 +214,11 @@ export default function Compare() {
             {renderImageResult(result.image_b, 'Image B', result.winner === 'B', captionsB)}
           </div>
 
-          <div className="glass-card p-4">
+          <div className={`glass-card p-4 ${result.winner === 'tie' ? 'ring-1 ring-yellow-500/30' : ''}`}>
             <p className="text-sm text-gray-300 leading-relaxed">
-              <span className="font-semibold text-brand-400">Verdict: </span>
+              <span className="font-semibold text-brand-400">
+                {result.winner === 'tie' ? '🤝 Verdict: ' : 'Verdict: '}
+              </span>
               {result.reason}
             </p>
           </div>
