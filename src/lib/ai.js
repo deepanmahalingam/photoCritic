@@ -364,6 +364,220 @@ function computeScores(a) {
 }
 
 // ============================================================
+// SHARED HELPERS
+// ============================================================
+
+function deriveWarmCool(analysis) {
+  return analysis.warmth > 1.15 ? 'warm' : analysis.warmth < 0.9 ? 'cool' : 'neutral'
+}
+
+function deriveMood(analysis) {
+  const warmCool = deriveWarmCool(analysis)
+  if (warmCool === 'warm' && analysis.avgBrightness > 130) return 'inviting and nostalgic'
+  if (warmCool === 'warm') return 'intimate and atmospheric'
+  if (warmCool === 'cool' && analysis.avgBrightness > 130) return 'fresh and contemporary'
+  if (warmCool === 'cool') return 'moody and contemplative'
+  if (analysis.avgBrightness > 170) return 'airy and ethereal'
+  if (analysis.avgBrightness < 70) return 'dramatic and cinematic'
+  return 'balanced and polished'
+}
+
+// ============================================================
+// IDIOM BANK — multi-layered caption templates
+// ============================================================
+
+const IDIOM_BANK = {
+  scene: {
+    landscape: [
+      'The world is a canvas, and {dominantColor} is today\'s chosen hue',
+      'Where the horizon whispers promises to the earth',
+      'Still waters run deep, and so does this view',
+      'Not all who wander are lost — some find views like this',
+      'Miles to go before I sleep, but this view demands a pause',
+      'Nature\'s cathedral needs no roof',
+      'Every mountain top is within reach if you keep climbing',
+      'The earth has music for those who listen',
+    ],
+    nature: [
+      'Let nature be your teacher — it speaks in {dominantColor}',
+      'Where wildflowers write their own poetry',
+      'Mighty oaks from little acorns grow — and this one\'s thriving',
+      'A thing of beauty is a joy forever',
+      'In every walk with nature, one receives far more than they seek',
+      'Bloom where you are planted',
+      'The earth laughs in flowers',
+      'Green is the prime color of the world, and that from which its loveliness arises',
+    ],
+    sky: [
+      'Every cloud has a {dominantColor} lining',
+      'The sky\'s the limit, and the limit is {mood}',
+      'Chasing horizons and catching {dominantColor} dreams',
+      'Above the clouds, the sky is always clear',
+      'Where the sky paints its own masterpiece',
+      'Sunsets are proof that endings can be beautiful too',
+      'The sky broke like an egg into full sunset',
+    ],
+    architecture: [
+      'Built on solid ground, framed in {warmCool} light',
+      'Rome wasn\'t built in a day, but it was photographed in a moment',
+      'A house is made of walls and beams; a photo is made of light and dreams',
+      'Standing the test of time, one frame at a time',
+      'Where stone meets sky, stories are written in light',
+      'Every wall tells a tale if you know how to listen',
+    ],
+    street: [
+      'The road less traveled makes all the difference',
+      'Life moves fast — this frame holds it still',
+      'Every street has a story, and this one\'s {mood}',
+      'Where the pavement meets the golden hour',
+      'The city never sleeps, but it poses beautifully',
+      'Concrete jungle where dreams are made of light',
+    ],
+    portrait: [
+      'A picture is worth a thousand words, but this face tells the whole story',
+      'The eyes are the window to the soul — and this window\'s wide open',
+      'Still waters run deep, and so does this gaze',
+      'Every face tells a story worth framing',
+      'Beauty is truth, truth beauty — that is all you need to know',
+      'In every face, a universe of stories waits to unfold',
+    ],
+    animal: [
+      'Every dog has its day, and this one\'s {mood}',
+      'The early bird gets the shot — and what a shot it is',
+      'Wild at heart, perfectly framed',
+      'Curiosity captured the {topLabel}',
+      'A leopard can\'t change its spots, but it can strike a pose',
+      'In the wild, beauty needs no filter',
+      'Eyes that speak louder than words ever could',
+    ],
+    food: [
+      'A feast for the eyes before the palate',
+      'The proof of the pudding is in the {dominantColor} plating',
+      'Too many cooks? Not in this kitchen masterpiece',
+      'Good enough to eat, better to frame',
+      'The icing on the cake of visual storytelling',
+      'Life is short — eat the good food and photograph it first',
+      'Where flavor meets frame',
+    ],
+    vehicle: [
+      'Life in the fast lane, frozen in {warmCool} light',
+      'The wheels of time stop for no one — except this shutter',
+      'Built for speed, captured for eternity',
+      'Where the rubber meets the road, the light meets the lens',
+      'Going the extra mile, one frame at a time',
+      'Not the destination, but the journey — and the ride',
+    ],
+    interior: [
+      'Home is where the {warmCool} light is',
+      'A room with a view — and a story to tell',
+      'There\'s no place like this frame',
+      'Behind closed doors, open compositions',
+      'Where four walls become a canvas',
+      'The comfort of light finding its way home',
+    ],
+    general: [
+      'A picture is worth a thousand words — this one\'s a novel',
+      'Seeing is believing, and this is {mood}',
+      'Frame by frame, the story unfolds',
+      'The best things in life are framed',
+      'Light, shadow, and everything in between',
+      'Some moments are too good not to frame',
+      'Where vision meets the viewfinder',
+    ],
+  },
+
+  mood: {
+    'inviting and nostalgic': [
+      'Wrapped in golden hour memories',
+      'Yesterday called — it wants this moment back',
+      'Nostalgia never looked so warm',
+    ],
+    'intimate and atmospheric': [
+      'Whispered tones and quiet drama',
+      'In the hush between shadows',
+      'Where shadows and warmth hold a conversation',
+    ],
+    'fresh and contemporary': [
+      'Clean lines, clear vision',
+      'Cool as the morning light',
+      'A breath of fresh composition',
+    ],
+    'moody and contemplative': [
+      'Deep thoughts, deeper shadows',
+      'Still waters, brooding skies',
+      'The quiet before the visual storm',
+    ],
+    'airy and ethereal': [
+      'Light as a feather, strong as a frame',
+      'Dancing on the edge of light',
+      'Walking on sunshine, framed in gold',
+    ],
+    'dramatic and cinematic': [
+      'Lights, camera, no action needed',
+      'The plot thickens with every shadow',
+      'Cinema-worthy, no script required',
+    ],
+    'balanced and polished': [
+      'The Goldilocks zone of photography — just right',
+      'Neither too much nor too little — the sweet spot',
+      'Equilibrium in every pixel',
+    ],
+  },
+
+  object: {
+    dog: ['Every dog has its day, and this one stole the show', 'Who let the dogs out? Into this perfect frame'],
+    cat: ['Curiosity didn\'t just spare this cat — it made it photogenic', 'The cat\'s meow, in {dominantColor} tones'],
+    person: ['Strike a pose, the light does the rest', 'The human element that brings the frame to life'],
+    car: ['Life in the fast lane never looked so {mood}', 'Parked in perfection'],
+    bird: ['A bird in the frame is worth two in the bush', 'Free as a bird, sharp as the focus'],
+    bicycle: ['Life is like riding a bicycle — balance makes it beautiful', 'Two wheels, one perfect frame'],
+    horse: ['Hold your horses — this shot deserves a second look', 'Straight from the horse\'s mouth: this is a winner'],
+    boat: ['Whatever floats your boat — this one floats beautifully', 'Smooth sailing in {warmCool} waters'],
+    truck: ['Built tough, framed gently', 'Heavy metal, light touch'],
+    motorcycle: ['Born to be wild, framed to be remembered', 'Chrome and character in equal measure'],
+    bus: ['Next stop: a frame worth remembering', 'The journey is the destination'],
+    train: ['All aboard the {dominantColor} express', 'On the right track to a great shot'],
+    airplane: ['The sky is not the limit — it\'s just the beginning', 'Clear for takeoff into the frame'],
+    bench: ['Take a seat and soak in the view', 'Rest here — the scenery does the talking'],
+    umbrella: ['Come rain or shine, this frame delivers', 'Under cover of {dominantColor} skies'],
+    backpack: ['Adventure is out there, and it looks like this', 'Packed with stories, framed with care'],
+    clock: ['Time stands still in a good photograph', 'Every second counts, this one\'s timeless'],
+    potted_plant: ['Bloom where you are planted — even indoors', 'A little green goes a long way'],
+    cup: ['But first, let me photograph this', 'Stirring up some {warmCool} vibes'],
+    bottle: ['Message in a bottle, story in a frame', 'Bottled up and ready to share'],
+  },
+
+  color: {
+    red: ['Painting the town red, one pixel at a time', 'Red-hot and ready for its close-up'],
+    orange: ['Orange you glad you took this shot', 'Amber waves of visual grace'],
+    yellow: ['Good as gold, and twice as luminous', 'Mellow yellow, sharp composition'],
+    chartreuse: ['Between green and gold, magic happens', 'Where spring meets the shutter'],
+    green: ['The grass is greener in this frame', 'Green with envy — anyone would be'],
+    'spring green': ['Fresh as the first day of spring', 'Where green means go — straight to the gallery'],
+    cyan: ['Cool, calm, and composed — just like this shot', 'Crystal clear vision in every tone'],
+    azure: ['Blue skies and brighter frames', 'Azure dreams caught on camera'],
+    blue: ['Out of the blue, into the frame', 'Once in a blue moon, a shot like this comes along'],
+    violet: ['Shrinking violet? Not this composition', 'Purple reign over light and shadow'],
+    magenta: ['Bold, electric, and unapologetically vibrant', 'Where magenta meets the moment'],
+    rose: ['Stop and smell the roses — then photograph them', 'Every rose has its frame'],
+    neutral: ['Shades of gray, worlds of meaning', 'Neutral tones, bold statement'],
+  },
+
+  quality: {
+    high: [
+      'Chef\'s kiss to the photographer',
+      'They didn\'t just capture a moment — they captured lightning in a bottle',
+      'Perfection, thy name is this photograph',
+    ],
+    low: [
+      'A diamond in the rough — polish the exposure and watch it shine',
+      'Rome wasn\'t shot in a day — keep clicking',
+      'The journey of a thousand great photos begins with a single shutter click',
+    ],
+  },
+}
+
+// ============================================================
 // CONTENT-AWARE FEEDBACK GENERATOR
 // ============================================================
 
@@ -373,7 +587,7 @@ function generateFeedback(scores, analysis, sceneInfo, objectInfo) {
   const { objects, positions } = objectInfo
 
   const topLabel = labels[0]?.name || 'subject'
-  const warmCool = analysis.warmth > 1.15 ? 'warm' : analysis.warmth < 0.9 ? 'cool' : 'neutral'
+  const warmCool = deriveWarmCool(analysis)
   const brightDesc = analysis.avgBrightness > 170 ? 'bright' : analysis.avgBrightness < 70 ? 'dark, moody' : 'well-balanced'
   const sharpDesc = analysis.sharpness > 20 ? 'sharp and detailed' : analysis.sharpness > 10 ? 'reasonably sharp' : 'soft'
   const colorDesc = analysis.dominantColor !== 'neutral' ? `${analysis.dominantColor} tones` : 'neutral tones'
@@ -437,13 +651,7 @@ function generateFeedback(scores, analysis, sceneInfo, objectInfo) {
   }
 
   // 5. Artistic impression / mood
-  const moodDesc = warmCool === 'warm' && analysis.avgBrightness > 130 ? 'inviting and nostalgic'
-    : warmCool === 'warm' && analysis.avgBrightness <= 130 ? 'intimate and atmospheric'
-    : warmCool === 'cool' && analysis.avgBrightness > 130 ? 'fresh and contemporary'
-    : warmCool === 'cool' && analysis.avgBrightness <= 130 ? 'moody and contemplative'
-    : analysis.avgBrightness > 170 ? 'airy and ethereal'
-    : analysis.avgBrightness < 70 ? 'dramatic and cinematic'
-    : 'balanced and polished'
+  const moodDesc = deriveMood(analysis)
 
   feedback.push(`Overall, the image has a ${moodDesc} quality. ${scores.artistic_quality >= 7 ? 'There is a clear artistic intention and the visual elements come together cohesively — it feels like a deliberate, finished piece.' : scores.artistic_quality >= 5 ? 'The foundations are solid — refining the composition and light could elevate this from a good shot to a memorable one.' : 'With more intentional framing and light, this scene has potential to become a much stronger image.'}`)
 
@@ -452,7 +660,8 @@ function generateFeedback(scores, analysis, sceneInfo, objectInfo) {
 
 function generateSummary(scores, analysis, sceneInfo, objectInfo) {
   const topLabel = sceneInfo.labels[0]?.name || 'subject'
-  const warmCool = analysis.warmth > 1.15 ? 'warm' : analysis.warmth < 0.9 ? 'cool' : 'naturally lit'
+  const wc = deriveWarmCool(analysis)
+  const warmCool = wc === 'neutral' ? 'naturally lit' : wc
   const objs = objectInfo.objects.slice(0, 2)
   const objStr = objs.length ? ` featuring ${objs.join(' and ')}` : ''
   const r = scores.overall_rating
@@ -461,6 +670,95 @@ function generateSummary(scores, analysis, sceneInfo, objectInfo) {
   if (r >= 6) return `A solid ${sceneInfo.sceneType} shot${objStr} with ${warmCool} tones. The fundamentals are in place — targeted improvements in ${scores.lighting < scores.composition ? 'lighting' : 'composition'} and detail would elevate it further.`
   if (r >= 4) return `A ${sceneInfo.sceneType} photograph${objStr} with ${warmCool} tones that shows potential. Addressing the exposure, sharpness, and compositional balance would significantly strengthen the result.`
   return `A ${sceneInfo.sceneType} capture${objStr} that needs work on core fundamentals. Focus on exposure, sharp focus, and cleaner composition to build a stronger foundation.`
+}
+
+// ============================================================
+// IDIOMATIC CAPTION GENERATOR
+// ============================================================
+
+function generateCaptions(scores, analysis, sceneInfo, objectInfo) {
+  const { sceneType, labels } = sceneInfo
+  const { objects } = objectInfo
+  const warmCool = deriveWarmCool(analysis)
+  const mood = deriveMood(analysis)
+  const topLabel = labels[0]?.name || 'subject'
+  const dominantColor = analysis.dominantColor
+
+  const subs = { dominantColor, warmCool, mood, topLabel }
+
+  function fill(template) {
+    return template.replace(/\{(\w+)\}/g, (_, key) => subs[key] || key)
+  }
+
+  function pickRandom(arr, n) {
+    const shuffled = [...arr].sort(() => Math.random() - 0.5)
+    return shuffled.slice(0, n)
+  }
+
+  // Build candidate pool from all layers
+  const candidates = []
+
+  // Layer 1: Scene (3-4 from scene type)
+  const scenePool = IDIOM_BANK.scene[sceneType] || IDIOM_BANK.scene.general
+  candidates.push(...pickRandom(scenePool, 4).map(fill))
+
+  // Layer 2: Mood (1-2 from mood)
+  const moodPool = IDIOM_BANK.mood[mood] || []
+  if (moodPool.length) candidates.push(...pickRandom(moodPool, 2).map(fill))
+
+  // Layer 3: Object (1 per detected object, max 2)
+  for (const obj of objects.slice(0, 2)) {
+    const objPool = IDIOM_BANK.object[obj]
+    if (objPool) candidates.push(...pickRandom(objPool, 1).map(fill))
+  }
+
+  // Layer 4: Color (1 if not neutral)
+  if (dominantColor !== 'neutral') {
+    const colorPool = IDIOM_BANK.color[dominantColor] || []
+    if (colorPool.length) candidates.push(fill(pickRandom(colorPool, 1)[0]))
+  }
+
+  // Layer 5: Quality-aware (1 for extreme scores)
+  if (scores.overall_rating >= 8) {
+    candidates.push(...pickRandom(IDIOM_BANK.quality.high, 1))
+  } else if (scores.overall_rating <= 3) {
+    candidates.push(...pickRandom(IDIOM_BANK.quality.low, 1))
+  }
+
+  // Deduplicate
+  const unique = [...new Set(candidates)]
+
+  // Prioritize variety: pick 1 from each layer first, then fill remaining
+  const final = []
+  const sceneFilled = scenePool.map(fill)
+  const moodFilled = moodPool.map(fill)
+
+  // One from scene
+  const fromScene = unique.find(c => sceneFilled.includes(c))
+  if (fromScene) final.push(fromScene)
+
+  // One from mood
+  const fromMood = unique.find(c => moodFilled.includes(c) && !final.includes(c))
+  if (fromMood) final.push(fromMood)
+
+  // One from object/color
+  const fromObj = unique.find(c => !final.includes(c) && !sceneFilled.includes(c) && !moodFilled.includes(c))
+  if (fromObj) final.push(fromObj)
+
+  // Fill remaining from pool
+  for (const c of unique) {
+    if (final.length >= 5) break
+    if (!final.includes(c)) final.push(c)
+  }
+
+  // Pad if needed
+  while (final.length < 4) {
+    const fallback = pickRandom(IDIOM_BANK.scene.general, 1).map(fill)
+    if (!final.includes(fallback[0])) final.push(fallback[0])
+    else break
+  }
+
+  return final.slice(0, 5)
 }
 
 // ============================================================
@@ -492,8 +790,9 @@ export async function critiquePhoto(file) {
   const objectInfo = describeObjects(normalizedDetections)
   const feedback = generateFeedback(scores, analysis, sceneInfo, objectInfo)
   const summary = generateSummary(scores, analysis, sceneInfo, objectInfo)
+  const captions = generateCaptions(scores, analysis, sceneInfo, objectInfo)
 
-  return { ...scores, feedback, summary }
+  return { ...scores, feedback, summary, captions }
 }
 
 export async function comparePhotos(fileA, fileB) {
@@ -522,6 +821,8 @@ export async function comparePhotos(fileA, fileB) {
   const fbB = generateFeedback(scoresB, pxB, sceneB, objB)
   const sumA = generateSummary(scoresA, pxA, sceneA, objA)
   const sumB = generateSummary(scoresB, pxB, sceneB, objB)
+  const capA = generateCaptions(scoresA, pxA, sceneA, objA)
+  const capB = generateCaptions(scoresB, pxB, sceneB, objB)
 
   const winner = scoresA.overall_rating >= scoresB.overall_rating ? 'A' : 'B'
   const w = winner === 'A' ? scoresA : scoresB
@@ -537,8 +838,8 @@ export async function comparePhotos(fileA, fileB) {
   const reason = `Image ${winner} wins with ${reasons.join(' and ')}, scoring ${w.overall_rating}/10 vs ${l.overall_rating}/10.`
 
   return {
-    image_a: { ...scoresA, feedback: fbA, summary: sumA },
-    image_b: { ...scoresB, feedback: fbB, summary: sumB },
+    image_a: { ...scoresA, feedback: fbA, summary: sumA, captions: capA },
+    image_b: { ...scoresB, feedback: fbB, summary: sumB, captions: capB },
     winner, reason,
   }
 }

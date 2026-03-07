@@ -85,6 +85,21 @@ export default function Compare() {
           ))}
         </div>
       )}
+      {data.captions && data.captions.length > 0 && (
+        <div className="space-y-2 pt-3 border-t border-white/[0.06]">
+          <p className="text-xs font-semibold text-gray-400 mb-1">Caption Ideas</p>
+          {data.captions.slice(0, 3).map((caption, i) => (
+            <p
+              key={i}
+              className="text-xs text-gray-400 leading-relaxed pl-3 border-l-2 border-brand-600/20 italic cursor-pointer hover:text-gray-300 transition-colors"
+              onClick={(e) => { e.stopPropagation(); navigator.clipboard?.writeText(caption) }}
+              title="Click to copy"
+            >
+              &ldquo;{caption}&rdquo;
+            </p>
+          ))}
+        </div>
+      )}
     </div>
   )
 

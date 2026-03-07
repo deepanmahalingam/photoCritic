@@ -126,6 +126,37 @@ export default function Critique() {
             </div>
           </div>
 
+          {result.captions && result.captions.length > 0 && (
+            <div className="glass-card p-6">
+              <h3 className="font-semibold mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
+                </svg>
+                Caption Suggestions
+              </h3>
+              <div className="space-y-3">
+                {result.captions.map((caption, i) => (
+                  <div
+                    key={i}
+                    className="flex items-start gap-3 group cursor-pointer rounded-lg p-2 -mx-2 hover:bg-white/[0.04] transition-colors"
+                    onClick={() => navigator.clipboard?.writeText(caption)}
+                    title="Click to copy"
+                  >
+                    <span className="text-brand-400 text-sm font-mono mt-0.5 shrink-0">{i + 1}.</span>
+                    <p className="text-sm text-gray-300 leading-relaxed italic flex-1">
+                      &ldquo;{caption}&rdquo;
+                    </p>
+                    <svg className="w-4 h-4 text-gray-600 group-hover:text-brand-400 transition-colors mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+                    </svg>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-600 mt-3">Tap any caption to copy it</p>
+            </div>
+          )}
+
           <button
             onClick={() => { setFile(null); setPreview(null); setResult(null) }}
             className="btn-secondary w-full"
