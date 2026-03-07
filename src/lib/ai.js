@@ -382,19 +382,6 @@ function deriveMood(analysis) {
   return 'balanced and polished'
 }
 
-// ============================================================
-// GEMINI API KEY MANAGEMENT
-// ============================================================
-
-const GEMINI_KEY_STORAGE = 'photocritic_gemini_key'
-
-export function getGeminiKey() {
-  return localStorage.getItem(GEMINI_KEY_STORAGE) || ''
-}
-
-export function saveGeminiKey(key) {
-  localStorage.setItem(GEMINI_KEY_STORAGE, key.trim())
-}
 
 // ============================================================
 // CONTENT-AWARE FEEDBACK GENERATOR
@@ -492,75 +479,235 @@ function generateSummary(scores, analysis, sceneInfo, objectInfo) {
 }
 
 // ============================================================
-// GEMINI-POWERED CAPTION GENERATOR
+// SMART CAPTION BANK — pre-written captions selected by context
+// No API key needed. Detection data is used for SELECTION only.
 // ============================================================
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result.split(',')[1])
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
+const OBJECT_CAPTIONS = {
+  person: ['Caught between moments', 'Main character energy', 'Living proof that good times exist', 'Not posing, just existing beautifully', 'Some stories are best told without words'],
+  dog: ['Who rescued who?', 'My four-legged therapist at work', 'Pawsitively obsessed', 'Every dog has its day \u2014 today is theirs', 'The goodest boy in any timeline'],
+  cat: ['Purrfection in its natural habitat', 'Attitude level: feline', 'Nine lives, not a single care', 'The internet was built for this', 'Whiskers and wisdom'],
+  bird: ['Wings weren\u2019t made for cages', 'Free as the sky allows', 'Nature\u2019s little soprano', 'Feathered and fearless', 'Born to fly'],
+  car: ['Life in the fast lane', 'Built for the road less traveled', 'Chasing horizons on four wheels', 'The journey is the destination', 'Ride or die'],
+  truck: ['Life in the fast lane', 'Built for the road less traveled', 'Heavy metal on the highway', 'The journey is the destination', 'Miles to go'],
+  bus: ['Life in the fast lane', 'Next stop: somewhere beautiful', 'The journey is the destination', 'Rolling through', 'Along for the ride'],
+  motorcycle: ['Two wheels, endless freedom', 'Born to ride', 'Wind in the soul', 'Throttle therapy', 'Ride or die'],
+  bicycle: ['Life is a beautiful ride', 'Two wheels, zero worries', 'Pedaling through paradise', 'The slow lane is underrated', 'Freedom has two wheels'],
+  horse: ['Unbridled beauty', 'Born to run wild', 'Grace on four legs', 'Where the wild things are', 'Hoofbeats and heartbeats'],
+  bottle: ['Sip happens', 'Cheers to the little things', 'Brewing something beautiful', 'Pour decisions make the best stories', 'Fill your cup with what matters'],
+  'wine glass': ['Sip happens', 'Cheers to the little things', 'Wine not?', 'Pour decisions make the best stories', 'Aged to perfection'],
+  cup: ['But first, coffee', 'Brewing something beautiful', 'Cheers to the little things', 'Fill your cup with what matters', 'Warm hands, warm heart'],
+  pizza: ['Feed your soul', 'Life is short \u2014 eat the good stuff', 'Calories don\u2019t count when the vibes are right', 'A slice of heaven', 'Comfort in every bite'],
+  sandwich: ['Feed your soul', 'Life is short \u2014 eat the good stuff', 'Stacked with love', 'A balanced diet is food in both hands', 'Comfort in every bite'],
+  donut: ['Feed your soul', 'Donut worry, be happy', 'Life is short \u2014 eat the good stuff', 'Sweet on you', 'Hole lot of happiness'],
+  cake: ['Feed your soul', 'Life is sweet', 'Having my cake and eating it too', 'Layers of happiness', 'Sweet moments'],
+  'hot dog': ['Feed your soul', 'Relish the moment', 'Life is short \u2014 eat the good stuff', 'Comfort in every bite', 'Simple pleasures'],
+  banana: ['Fresh picked and living', 'Nature\u2019s candy', 'The simple things hit different', 'Organic vibes only', 'Straight from the source'],
+  apple: ['Fresh picked and living', 'Nature\u2019s candy', 'The simple things hit different', 'Organic vibes only', 'An apple a day'],
+  orange: ['Fresh picked and living', 'Nature\u2019s candy', 'Squeeze the day', 'Organic vibes only', 'Vitamin sea \u2014 I mean C'],
+  broccoli: ['Eat your greens', 'Green and thriving', 'Good food, good mood', 'Rooted in wellness', 'Farm fresh feels'],
+  carrot: ['Eat your greens', 'Orange you glad?', 'Good food, good mood', 'Rooted in wellness', 'Farm fresh feels'],
+  'potted plant': ['Growing where I\u2019m planted', 'Rooted in good vibes', 'Bloom where you are', 'Green is the new everything', 'Plant parent energy'],
+  book: ['Between the lines', 'Lost in a good story', 'Pages over screens', 'The best journeys start with a page', 'Ink and imagination'],
+  laptop: ['Pixels and possibilities', 'Screen time worth having', 'Creating from anywhere', 'Digital dreams', 'Work hard, scroll harder'],
+  tv: ['Screen time worth having', 'Binge-worthy moments', 'Pixels and chill', 'Digital vibes', 'Streaming and dreaming'],
+  keyboard: ['Pixels and possibilities', 'Type your own story', 'Creating from anywhere', 'Digital vibes', 'Key to happiness'],
+  couch: ['Comfort zone activated', 'Home is where the couch is', 'Rest is productive too', 'Living room living', 'Cozy never goes out of style'],
+  bed: ['Comfort zone activated', 'Dream headquarters', 'Rest is productive too', 'Pillow talk', 'Cozy never goes out of style'],
+  chair: ['Take a seat, stay awhile', 'Home is where the heart is', 'Comfort zone activated', 'Living my best life', 'Sit back and enjoy'],
+  umbrella: ['Dancing in the rain', 'Storm chaser', 'Every cloud has a silver lining', 'Rain check accepted', 'Umbrella weather is my weather'],
+  clock: ['Time well spent', 'Every second counts', 'Making time for what matters', 'Clocking good vibes', 'Time flies when you\u2019re living'],
+  vase: ['Bloom where you are', 'Fresh flowers, fresh start', 'Petal power', 'Arranged with love', 'Life in full bloom'],
+  teddy_bear: ['Soft and sentimental', 'Bear hugs only', 'Childhood never really ends', 'Forever cuddly', 'Some things never get old'],
+  sports_ball: ['Game on', 'Playing to win', 'Ball is life', 'In my element', 'Nothing but net'],
+  kite: ['Letting my dreams fly', 'High spirits', 'Wind beneath my wings', 'Sky\u2019s the limit', 'Soaring high'],
+  surfboard: ['Ride the wave', 'Salt life', 'Surf\u2019s up', 'Ocean therapy', 'Catching good vibes'],
+  skateboard: ['Roll with it', 'Grinding through life', 'Four wheels and freedom', 'Street style', 'Keep pushing'],
+  boat: ['Seas the day', 'Anchored in happiness', 'Smooth sailing ahead', 'Life is better on the water', 'Drifting away'],
+  airplane: ['Jet set state of mind', 'Up, up and away', 'Wings over the world', 'Wanderlust activated', 'Above it all'],
+  train: ['All aboard', 'On the right track', 'Life\u2019s a journey', 'Next station: adventure', 'Tracks of my life'],
+  elephant: ['Gentle giant energy', 'Never forget this moment', 'Majestic in every way', 'Wild and wise', 'Big heart, bigger dreams'],
+  bear: ['Bear with me', 'Wild at heart', 'Fierce and free', 'Nature\u2019s powerhouse', 'Untamed beauty'],
+  zebra: ['Earning my stripes', 'Black, white, and bold all over', 'Born to stand out', 'Wild patterns', 'Stripe life'],
+  giraffe: ['Head and shoulders above the rest', 'Living life on another level', 'Tall tales', 'Reaching for the sky', 'Standing tall'],
+  cow: ['Moo-d: content', 'Out standing in the field', 'Simple life, happy life', 'Pasture vibes', 'Udderly beautiful'],
+  sheep: ['Following my own path', 'Wool you look at that', 'Counting blessings, not sheep', 'Flock yeah', 'Peaceful pastures'],
+  backpack: ['Adventure awaits', 'Packed and ready', 'Wanderlust in a bag', 'Carry your dreams', 'On the go'],
+  handbag: ['Carry yourself with confidence', 'Bags of style', 'Got everything I need', 'Accessorize your life', 'Handle with care'],
+  tie: ['Dressed to impress', 'Suited and booted', 'Tie game strong', 'Class act', 'Sharp dressed'],
+  frisbee: ['Catch this vibe', 'Disc-covering happiness', 'Throwing shade \u2014 the fun kind', 'Play more, worry less', 'Catch me if you can'],
+  sink: ['Let that sink in', 'Clean slate', 'Kitchen confidential', 'Sparkling clean', 'Fresh start'],
+  refrigerator: ['Cool vibes only', 'Chill mode on', 'What\u2019s cooking good looking', 'Kitchen essentials', 'Keeping it fresh'],
+  oven: ['Cooking up something special', 'Heat of the moment', 'Baked with love', 'Something\u2019s brewing', 'Kitchen magic'],
+  toilet: ['Throne room selfie', 'Royal flush', 'Behind every great home', 'Porcelain dreams', 'Taking a moment'],
+  dining_table: ['Gather around', 'Table for good times', 'Breaking bread', 'The heart of the home', 'Set for happiness'],
+  bench: ['Take a seat, enjoy the view', 'Bench press \u2014 just sitting', 'Rest stop for the soul', 'Park life', 'Pause and breathe'],
+  fire_hydrant: ['Street style', 'City details', 'Urban jungle', 'Concrete jungle', 'Sidewalk stories'],
+  stop_sign: ['Stop and appreciate this', 'Red means ready', 'Pause for effect', 'Stop, look, beautiful', 'Full stop, full appreciation'],
+  parking_meter: ['Time is on my side', 'Street views', 'Urban moments', 'City rhythm', 'Parked here for a while'],
+  traffic_light: ['Green light go', 'Waiting for the right moment', 'City pulse', 'Urban glow', 'Stop, go, glow'],
+  skis: ['Slope style', 'Powder day dreams', 'Ski you later', 'Peak performance', 'Snow much fun'],
+  snowboard: ['Shred the gnar', 'Board meeting', 'Snow much fun', 'Riding high', 'Winter wonderland'],
+  tennis_racket: ['Love game', 'Serving looks', 'Match point', 'Net gains', 'Court side vibes'],
+  scissors: ['Cut above the rest', 'Making the cut', 'Sharp style', 'Crafted with care', 'Precision matters'],
+  toothbrush: ['Brush it off', 'Clean start', 'Fresh and ready', 'Morning routine', 'Smile more'],
+  hair_drier: ['Blow dry and fly', 'Getting ready vibes', 'Hot air, cool style', 'Prep mode', 'Ready set glow'],
+  remote: ['In control', 'Channel your energy', 'Couch commander', 'Binge mode activated', 'Click into it'],
+  cell_phone: ['Connected to the moment', 'Ring ring \u2014 adventure calling', 'Screen time', 'Digital life', 'Calling all good vibes'],
+  microwave: ['Quick bites', 'Heating up', 'Kitchen shortcuts', 'Fast and fabulous', 'Nuked with love'],
+  toaster: ['Toast to the good life', 'Crusty outside, warm inside', 'Morning essentials', 'Toasted perfection', 'Rise and shine'],
+  mouse: ['Click into it', 'Point and create', 'Desk vibes', 'Scroll your way', 'Digital life'],
+  suitcase: ['Packed for adventure', 'Jet set ready', 'Going places', 'Travel light, live heavy', 'Next destination: happiness'],
+  fork: ['Fork yeah', 'Dig in', 'Ready to eat', 'Fork in the road to deliciousness', 'Taste the moment'],
+  knife: ['Sharp taste', 'Cut to the chase', 'Kitchen tales', 'Slicing through life', 'Blade runner'],
+  spoon: ['Stirring up something good', 'Spoonfuls of happiness', 'Comfort food incoming', 'Dig in', 'Taste the moment'],
+  bowl: ['Bowl of goodness', 'Soul food in a bowl', 'Good food, good mood', 'Bowl game strong', 'Wholesome vibes'],
 }
 
-export async function generateCaptions(file, apiKey) {
-  if (!apiKey) return []
+const SCENE_MOOD_CAPTIONS = {
+  landscape_warm: ['Golden hour never disappoints', 'Where the sky paints itself', 'Horizons dipped in honey'],
+  landscape_cool: ['Blue hour whispers', 'Cold air, warm heart', 'Serenity in every shade of blue'],
+  landscape_neutral: ['Wide open and waiting', 'The view was worth every step', 'Earth\u2019s screensaver'],
+  nature_warm: ['Sunlight through the leaves', 'Nature\u2019s golden gallery', 'Warmth grows wild here'],
+  nature_cool: ['Morning dew and quiet moments', 'Cool greens and calm scenes', 'Nature\u2019s quiet side'],
+  nature_neutral: ['Touch grass, find peace', 'Wild and free', 'Nature doesn\u2019t hurry'],
+  sky_warm: ['Sky on fire', 'Sunset state of mind', 'The sky blushed tonight'],
+  sky_cool: ['Endless blue overhead', 'Sky watching, soul charging', 'Painted in shades of blue'],
+  sky_neutral: ['Look up more often', 'Cloud gazing hours', 'The sky is today\u2019s canvas'],
+  architecture_warm: ['Golden light on old stones', 'History glows at sunset', 'Built to stand, lit to shine'],
+  architecture_cool: ['Clean lines, cool tones', 'Modern meets timeless', 'Structure and soul'],
+  architecture_neutral: ['Built different', 'Every building has a story', 'Concrete poetry'],
+  street_warm: ['City in golden light', 'Urban gold', 'Streets paved with sunset'],
+  street_cool: ['Neon nights and city lights', 'Cool streets, warm memories', 'After dark, cities dream'],
+  street_neutral: ['Street level perspective', 'Urban rhythm', 'The city never sleeps'],
+  portrait_warm: ['Sun-kissed and grateful', 'Golden glow up', 'Warmth looks good on you'],
+  portrait_cool: ['Cool tones, warm soul', 'Ice queen energy', 'Blue steel moment'],
+  portrait_neutral: ['Just me being me', 'Unapologetically myself', 'Caught in my element'],
+  animal_warm: ['Basking in the golden light', 'Warm fur, warmer heart', 'Sun-soaked and content'],
+  animal_cool: ['Wild and wonderful', 'Majestic in every light', 'Cool creatures only'],
+  animal_neutral: ['Animals make everything better', 'Pure souls', 'Nature\u2019s finest creation'],
+  food_warm: ['Comfort food, comfort vibes', 'Warm plates, happy hearts', 'Home-cooked happiness'],
+  food_cool: ['Fresh flavors, clean aesthetic', 'Plated to perfection', 'Cool and crisp on the plate'],
+  food_neutral: ['Good food, good mood', 'Eat well, live well', 'The art of eating'],
+  vehicle_warm: ['Golden mile', 'Sunset drives hit different', 'Chrome and golden light'],
+  vehicle_cool: ['Midnight ride', 'Steel blue and rolling', 'Built for the night'],
+  vehicle_neutral: ['Open road energy', 'Let\u2019s go somewhere', 'The journey starts now'],
+  interior_warm: ['Warm corners and cozy vibes', 'Home is a feeling', 'Golden hour indoors'],
+  interior_cool: ['Minimal and intentional', 'Clean space, clear mind', 'Less is more'],
+  interior_neutral: ['My happy place', 'Space to breathe', 'Curated living'],
+  general_warm: ['Everything the light touches', 'Warm vibes only', 'Bathed in gold'],
+  general_cool: ['Cool moment captured', 'Chill vibes documented', 'Blue mood, best mood'],
+  general_neutral: ['Moment captured', 'Here and now', 'Simple as it should be'],
+}
 
-  const base64 = await fileToBase64(file)
-  const mimeType = file.type || 'image/jpeg'
+const MOOD_CAPTIONS = {
+  warm_bright: ['Chasing golden moments', 'Let there be light', 'Sunshine state of mind', 'Bright days ahead', 'Glowing from the inside out'],
+  warm_dark: ['Candlelit vibes', 'Warmth in the shadows', 'After hours magic', 'Low light, high vibes', 'Amber evenings'],
+  cool_bright: ['Crystal clear moments', 'Fresh and fearless', 'Bright side energy', 'Clean and crisp', 'Daylight dreams'],
+  cool_dark: ['Moody and magnificent', 'Shadows tell the best stories', 'Dark aesthetic unlocked', 'Night owl hours', 'Into the blue'],
+  neutral_bright: ['Light it up', 'Bright ideas only', 'Clarity in every pixel', 'The bright side', 'Good lighting changes everything'],
+  neutral_dark: ['Embrace the dark side', 'Contrast is everything', 'Finding beauty in darkness', 'Night mode', 'Low key legendary'],
+}
 
-  const resp = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            {
-              inlineData: { mimeType, data: base64 },
-            },
-            {
-              text: `Look at this photo carefully. Generate exactly 5 creative, idiomatic caption suggestions for social media. Each caption should:
-- Directly reference specific things visible in the photo (objects, scene, colors, mood, setting)
-- Use idioms, metaphors, or poetic expressions that relate to what's actually in the image
-- Be short (under 15 words each)
-- Feel natural and creative, not generic
+const QUALITY_CAPTIONS = {
+  high: ['No filter needed', 'Frame this one', 'This one\u2019s a keeper', 'Gallery wall worthy', 'Shot of the day'],
+  medium: ['Work in progress, but make it art', 'Getting better with every click', 'Almost there', 'Good eye, keep shooting'],
+  low: ['Every master was once a beginner', 'The best shots are ahead of you', 'Practice makes perfect pixels', 'Keep shooting, keep growing'],
+}
 
-Return ONLY a JSON array of 5 strings. No markdown, no explanation. Example format:
-["caption 1", "caption 2", "caption 3", "caption 4", "caption 5"]`,
-            },
-          ],
-        }],
-        generationConfig: {
-          temperature: 0.9,
-          maxOutputTokens: 300,
-        },
-      }),
+function shuffle(arr) {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+function generateCaptions(scores, analysis, sceneInfo, objectInfo) {
+  const { sceneType } = sceneInfo
+  const { objects } = objectInfo
+  const warmCool = deriveWarmCool(analysis)
+  const brightness = analysis.avgBrightness > 150 ? 'bright' : analysis.avgBrightness < 80 ? 'dark' : (warmCool === 'neutral' ? 'bright' : '')
+
+  // Collect candidates with layer tags and priority scores
+  const candidates = []
+
+  // Layer 1: Object-specific (score 3) — most relevant
+  for (const obj of objects) {
+    const key = obj.replace(/ /g, '_')
+    const pool = OBJECT_CAPTIONS[key] || OBJECT_CAPTIONS[obj]
+    if (pool) {
+      for (const text of pool) candidates.push({ text, score: 3, layer: 'object' })
     }
-  )
-
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}))
-    throw new Error(err.error?.message || 'Gemini API request failed')
   }
 
-  const data = await resp.json()
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
-
-  // Parse the JSON array from the response
-  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-  try {
-    const captions = JSON.parse(cleaned)
-    if (Array.isArray(captions)) return captions.slice(0, 5)
-  } catch {
-    // Fallback: try to extract lines
-    const lines = cleaned.split('\n').filter(l => l.trim().length > 3).slice(0, 5)
-    return lines.map(l => l.replace(/^["'\d.\-–•]+\s*/, '').replace(/["']$/, '').trim())
+  // Layer 2: Scene + mood (score 2)
+  const sceneMoodKey = `${sceneType}_${warmCool}`
+  const sceneMoodPool = SCENE_MOOD_CAPTIONS[sceneMoodKey]
+  if (sceneMoodPool) {
+    for (const text of sceneMoodPool) candidates.push({ text, score: 2, layer: 'sceneMood' })
   }
 
-  return []
+  // Layer 3: Mood-only fallback (score 1)
+  const moodKey = brightness ? `${warmCool}_${brightness}` : `${warmCool}_bright`
+  const moodPool = MOOD_CAPTIONS[moodKey]
+  if (moodPool) {
+    for (const text of moodPool) candidates.push({ text, score: 1, layer: 'mood' })
+  }
+
+  // Layer 4: Quality-aware (score 0.5)
+  const qualityTier = scores.overall_rating >= 7 ? 'high' : scores.overall_rating >= 5 ? 'medium' : 'low'
+  const qualityPool = QUALITY_CAPTIONS[qualityTier]
+  if (qualityPool) {
+    for (const text of qualityPool) candidates.push({ text, score: 0.5, layer: 'quality' })
+  }
+
+  // Shuffle within each layer for randomization
+  const shuffled = shuffle(candidates)
+
+  // Greedy diverse selection: pick 5 captions preferring variety across layers
+  const picked = []
+  const usedLayers = {}
+  const usedTexts = new Set()
+
+  // Sort by score descending (shuffled within same score)
+  shuffled.sort((a, b) => b.score - a.score)
+
+  for (const c of shuffled) {
+    if (picked.length >= 5) break
+    if (usedTexts.has(c.text)) continue
+
+    // Apply diversity penalty: if this layer already contributed, lower effective score
+    const layerCount = usedLayers[c.layer] || 0
+    const effectiveScore = c.score - layerCount * 1.5
+
+    // Only skip if there are still other options and this layer is overrepresented
+    if (layerCount >= 2 && picked.length < 4) continue
+
+    picked.push(c)
+    usedLayers[c.layer] = layerCount + 1
+    usedTexts.add(c.text)
+  }
+
+  // Ensure we always have at least 1 quality caption if we have room
+  if (picked.length < 5 && !usedLayers.quality) {
+    const qCap = shuffle(qualityPool || [])[0]
+    if (qCap && !usedTexts.has(qCap)) {
+      picked.push({ text: qCap, score: 0.5, layer: 'quality' })
+    }
+  }
+
+  // Fill remaining slots if needed
+  for (const c of shuffled) {
+    if (picked.length >= 5) break
+    if (!usedTexts.has(c.text)) {
+      picked.push(c)
+      usedTexts.add(c.text)
+    }
+  }
+
+  return picked.slice(0, 5).map(c => c.text)
 }
 
 // ============================================================
@@ -592,8 +739,9 @@ export async function critiquePhoto(file) {
   const objectInfo = describeObjects(normalizedDetections)
   const feedback = generateFeedback(scores, analysis, sceneInfo, objectInfo)
   const summary = generateSummary(scores, analysis, sceneInfo, objectInfo)
+  const captions = generateCaptions(scores, analysis, sceneInfo, objectInfo)
 
-  return { ...scores, feedback, summary }
+  return { ...scores, feedback, summary, captions }
 }
 
 export async function comparePhotos(fileA, fileB) {
@@ -636,9 +784,12 @@ export async function comparePhotos(fileA, fileB) {
 
   const reason = `Image ${winner} wins with ${reasons.join(' and ')}, scoring ${w.overall_rating}/10 vs ${l.overall_rating}/10.`
 
+  const capsA = generateCaptions(scoresA, pxA, sceneA, objA)
+  const capsB = generateCaptions(scoresB, pxB, sceneB, objB)
+
   return {
-    image_a: { ...scoresA, feedback: fbA, summary: sumA },
-    image_b: { ...scoresB, feedback: fbB, summary: sumB },
+    image_a: { ...scoresA, feedback: fbA, summary: sumA, captions: capsA },
+    image_b: { ...scoresB, feedback: fbB, summary: sumB, captions: capsB },
     winner, reason,
   }
 }
